@@ -1,0 +1,1989 @@
+<title>Double Rock Sim</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:ital,wght@0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500;600;700&family=Pixelify+Sans:wght@500;600;700&display=swap">
+<style>
+:root{
+  /* Layout: the game view is the page. A 16:9 OSRS-style canvas (world, side panel, chat) with the tick ruler under it; controls, results and settings below in OSRS interface panels. */
+  color-scheme: dark;
+  --page:#120e0a;
+  --iface:#3e3529;
+  --iface-hi:#7d7563;
+  --iface-mid:#574f3f;
+  --iface-lo:#231d15;
+  --orange:#ff981f;
+  --yellow:#ffff00;
+  --text:#ebe1cb;
+  --dim:#b5a78c;
+  --magic:#5aaeff;
+  --range:#63d368;
+  --melee:#ef4c41;
+  --ok:#5fe35f;
+  --bad:#ff5a4a;
+  --font-display:"Pixelify Sans","Lucida Console","Courier New",monospace;
+  --font-body:"Barlow","Segoe UI",system-ui,-apple-system,sans-serif;
+  --font-mono:"IBM Plex Mono",ui-monospace,"Cascadia Mono",Consolas,monospace;
+  --fs-xs:12px;--fs-sm:14px;--fs-md:16px;--fs-lg:20px;--fs-xl:28px;
+  --bevel:inset 1px 1px 0 var(--iface-hi),inset -1px -1px 0 var(--iface-lo),0 0 0 1px #000;
+  --hs-red:none;--hs-blue:none; /* the hitsplat sprites, filled in at boot */
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{background:var(--page)}
+body{margin:0;color:var(--text);font-family:var(--font-body);font-size:var(--fs-md);line-height:1.5;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:16px 56px}
+a{color:var(--orange)}
+a:focus-visible,button:focus-visible,select:focus-visible,input:focus-visible,canvas:focus-visible{outline:2px solid var(--yellow);outline-offset:2px}
+kbd{font-family:var(--font-mono);font-weight:600;font-size:12px;background:var(--iface-lo);box-shadow:var(--bevel);border-radius:2px;padding:1px 6px;color:var(--text)}
+.app{max-width:1280px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+h1,h2,h3{text-wrap:balance}
+
+.top{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:4px 24px}
+.top h1{margin:0;font-family:var(--font-display);font-weight:700;font-size:32px;line-height:1;color:var(--orange);text-shadow:2px 2px 0 #000}
+.top p{margin:0;font-size:var(--fs-sm);color:var(--dim);max-width:70ch}
+
+.view{position:relative;background:#000;box-shadow:0 0 0 1px #000,0 0 0 3px var(--iface-mid),0 0 0 4px #000}
+#game{display:block;width:100%;aspect-ratio:16/9;height:auto;cursor:default;touch-action:none;user-select:none}
+.paused{position:absolute;right:10px;top:10px;white-space:nowrap;pointer-events:none;background:rgba(0,0,0,.6);color:var(--yellow);font:600 var(--fs-sm)/1 var(--font-body);padding:6px 10px;text-shadow:1px 1px 0 #000}
+.overlay{position:absolute;left:0;right:0;bottom:0;display:flex;justify-content:flex-start;padding:16px;pointer-events:none}
+.window{pointer-events:auto;max-width:520px;background:var(--iface);box-shadow:var(--bevel),0 10px 40px rgba(0,0,0,.65);padding:14px 16px;display:flex;flex-direction:column;gap:10px}
+.window h2{margin:0;font-family:var(--font-display);font-size:22px;line-height:1.1;color:var(--orange);text-shadow:1px 1px 0 #000}
+.window p{margin:0;font-size:var(--fs-sm)}
+.window.start{width:min(400px,100%);gap:12px}
+.keys{margin:0;display:grid;grid-template-columns:max-content minmax(0,1fr);align-items:center;gap:7px 22px;font-size:var(--fs-sm)}
+.keys dt{color:var(--dim)}
+.keys dd{margin:0;display:flex;align-items:center;gap:5px;min-height:22px}
+.keys .ico{width:20px;height:20px;image-rendering:pixelated}
+/* the start button borrows the red "Click here to play" button from the OSRS welcome screen */
+.btn.play{width:100%;margin-top:4px;padding:15px 16px 14px;font:700 21px/1 var(--font-body);letter-spacing:.08em;text-transform:uppercase;color:#fff;text-shadow:2px 2px 0 #000;
+  background:linear-gradient(#be2e1b,#84190d);box-shadow:inset 2px 2px 0 rgba(255,170,140,.4),inset -2px -2px 0 rgba(0,0,0,.45),0 0 0 1px #000;animation:beckon 1.8s ease-in-out infinite}
+.btn.play:hover{background:linear-gradient(#d33a22,#981f10);color:var(--yellow)}
+@keyframes beckon{50%{box-shadow:inset 2px 2px 0 rgba(255,170,140,.4),inset -2px -2px 0 rgba(0,0,0,.45),0 0 0 1px #000,0 0 18px rgba(255,90,40,.6)}}
+@media (prefers-reduced-motion:reduce){.btn.play{animation:none}}
+
+/* hitsplats, as the game draws them: red with the damage, blue for zero. The sprite stays its native 24x23,
+   wide numbers spill over it, and the digits are the in-game bitmap font (an image per number, see splatHTML) */
+.hs{display:inline-block;height:23px;vertical-align:middle;overflow:hidden;color:transparent;font-size:0;
+  background-image:var(--hs-n),var(--hs-red);background-repeat:no-repeat;background-position:center 8px,center;background-size:var(--hs-w) 9px,24px 23px;image-rendering:pixelated}
+.hs.zero{background-image:var(--hs-n),var(--hs-blue)}
+.log .hs{margin-block:-5px}
+
+.bar{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px}
+.controls{display:flex;flex-wrap:wrap;gap:8px}
+.divider{width:1px;align-self:stretch;background:#000;box-shadow:1px 0 0 var(--iface-mid)}
+.btn{appearance:none;border:0;background:var(--iface);box-shadow:var(--bevel);color:var(--orange);text-shadow:1px 1px 0 #000;border-radius:0;padding:8px 14px;font:600 var(--fs-sm)/1.1 var(--font-body);cursor:pointer;touch-action:manipulation}
+.btn:hover{background:#4a3f31;color:var(--yellow)}
+.btn:disabled{opacity:.45;cursor:default}
+.btn.go{background:#5b4410;color:var(--yellow)}
+.btn.edit[aria-pressed="true"]{background:#5b4410;color:var(--yellow)}
+
+.panel{background:var(--iface);box-shadow:var(--bevel);padding:12px 14px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.panel h2{margin:0;font-family:var(--font-display);font-size:var(--fs-sm);letter-spacing:.06em;text-transform:uppercase;color:var(--orange);text-shadow:1px 1px 0 #000}
+.ruler-head{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:4px 16px}
+.ruler-head p{margin:0;font-size:var(--fs-xs);color:var(--dim)}
+.ruler-wrap{overflow-x:auto;padding-bottom:2px}
+.ruler{display:grid;grid-template-columns:repeat(17,minmax(44px,1fr));gap:3px;min-width:800px}
+.cell{background:var(--iface-lo);box-shadow:inset 0 0 0 1px #000;padding:5px 3px 6px;display:flex;flex-direction:column;align-items:center;gap:3px;min-height:76px;text-align:center}
+.cell .r{font-family:var(--font-mono);font-weight:600;font-size:12px;color:var(--dim);font-variant-numeric:tabular-nums}
+.cell .ev{font-weight:700;font-size:12px;line-height:1.1}
+.cell .sub{font-size:11px;line-height:1.15;color:var(--dim)}
+.cell.key .ev{color:var(--orange)}
+.cell.now{background:#4f3f27;box-shadow:inset 0 0 0 2px var(--yellow)}
+.cell.past{opacity:.5}
+.chip{font-family:var(--font-mono);font-weight:700;font-size:14px;width:26px;height:26px;display:grid;place-items:center;background:var(--c,#6d5d4c);color:#120d09;box-shadow:inset 0 0 0 1px rgba(0,0,0,.6)}
+
+.cards{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr) minmax(0,1fr);gap:14px;align-items:start}
+.stack{display:flex;flex-direction:column;gap:14px;min-width:0}
+.report{display:flex;flex-direction:column;gap:8px;font-size:var(--fs-sm)}
+.rep-head{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.rep-n{font-family:var(--font-mono);font-weight:600}
+.pill{font-family:var(--font-mono);font-weight:700;font-size:var(--fs-sm);padding:2px 9px;color:#120d09}
+.pill.ok{background:var(--ok)}
+.pill.bad{background:var(--bad)}
+.pill.ex{background:var(--dim)}
+.rep-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:3px}
+.rep-list li{display:flex;justify-content:space-between;gap:10px;padding:2px 0 2px 9px;border-left:3px solid var(--dim)}
+.rep-list li span{color:var(--dim)}
+.rep-list li b{font-weight:600;text-align:right}
+.rep-list li.ok{border-left-color:var(--ok)}
+.rep-list li.ok b{color:var(--ok)}
+.rep-list li.bad{border-left-color:var(--bad)}
+.rep-list li.bad b{color:var(--bad)}
+.barrage{display:grid;grid-template-columns:repeat(6,1fr);gap:4px}
+.bchip{display:flex;flex-direction:column;align-items:center;gap:2px;padding:4px 0;background:var(--iface-lo);box-shadow:inset 0 0 0 1px #000}
+.bchip i{font-style:normal;font-family:var(--font-mono);font-weight:700;width:22px;height:22px;display:grid;place-items:center;background:var(--c);color:#120d09}
+.bchip em{font-style:normal;font-size:11px;font-weight:700;font-variant-numeric:tabular-nums}
+.bchip.ok em{color:var(--ok)}
+.bchip.bad em{color:var(--bad)}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.stat{display:flex;flex-direction:column}
+.stat .v{font-family:var(--font-mono);font-weight:600;font-size:22px;line-height:1.1;font-variant-numeric:tabular-nums;color:var(--yellow);text-shadow:1px 1px 0 #000}
+.stat .l{font-size:var(--fs-xs);color:var(--dim)}
+table.dmg{width:100%;border-collapse:collapse;font-size:var(--fs-sm);font-variant-numeric:tabular-nums}
+table.dmg th,table.dmg td{padding:3px 0 3px 14px;text-align:right;width:1%;white-space:nowrap}
+table.dmg th:first-child{text-align:left;width:auto;padding-left:0;white-space:normal}
+table.dmg thead th{padding-bottom:5px;font-size:var(--fs-xs);font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--dim)}
+table.dmg tbody th{font-weight:400;color:var(--dim)}
+table.dmg td{font-family:var(--font-mono);font-weight:600}
+table.dmg tfoot th,table.dmg tfoot td{padding-top:5px;border-top:1px solid #000;box-shadow:inset 0 1px 0 var(--iface-mid);font-weight:600;color:var(--text)}
+.sep{height:1px;background:#000;box-shadow:0 1px 0 var(--iface-mid)}
+.form{display:grid;grid-template-columns:1fr 1fr;gap:9px 12px}
+.field{display:flex;flex-direction:column;gap:3px;min-width:0}
+.field label{font-size:var(--fs-xs);letter-spacing:.05em;text-transform:uppercase;color:var(--dim)}
+select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0h10L5 6z' fill='%23ff981f'/%3E%3C/svg%3E") no-repeat right 9px center;box-shadow:var(--bevel);border:0;border-radius:0;color:var(--text);font:500 var(--fs-sm)/1.2 var(--font-body);padding:7px 26px 7px 8px}
+.toggles{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px 12px}
+.toggles .col{display:flex;flex-direction:column;gap:14px}
+.tgroup{border:0;margin:0;padding:0;display:flex;flex-direction:column;gap:5px;min-width:0}
+.tgroup legend{padding:0;margin-bottom:4px;font-size:var(--fs-xs);letter-spacing:.05em;text-transform:uppercase;color:var(--dim)}
+.tg{display:flex;align-items:flex-start;gap:7px;font-size:var(--fs-sm);cursor:pointer;line-height:1.3}
+.tg input{accent-color:var(--orange);width:15px;height:15px;margin:1px 0 0;flex:none}
+.log{list-style:none;margin:0;padding:0;max-height:430px;overflow-y:auto;font:400 12px/1.45 var(--font-mono);display:flex;flex-direction:column;gap:1px}
+.log li{display:grid;grid-template-columns:4.6ch 1fr;gap:8px;padding:2px 0;border-bottom:1px solid rgba(0,0,0,.3)}
+.log .lt{color:var(--orange)}
+.log li.bad span:last-child{color:var(--bad)}
+.log li.ok span:last-child{color:var(--ok)}
+.log li.hint span:last-child{color:var(--dim)}
+
+.credit{margin:0;font-size:var(--fs-xs);color:var(--dim)}
+
+@media (max-width:1000px){
+  .cards{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+  .cards > :last-child{grid-column:1/-1}
+}
+/* below this width the start window is taller than the game view, so it sits under the view instead of over it */
+@media (max-width:760px){
+  .overlay{position:static;justify-content:center;padding:12px}
+}
+@media (max-width:640px){
+  .cards,.form,.toggles{grid-template-columns:minmax(0,1fr)}
+  .divider{display:none}
+}
+</style>
+
+<div class="app">
+  <header class="top">
+    <h1>Double Rock Sim</h1>
+  </header>
+
+  <div class="view">
+    <canvas id="game" tabindex="0" aria-label="Game view. Click a tile to walk there; click prayers in the prayer book at the bottom right."></canvas>
+    <div class="paused" id="paused" hidden>Paused · Space resumes · . steps one tick</div>
+    <div class="overlay" id="overlay">
+      <div class="window start" role="dialog" aria-labelledby="ov-title">
+        <h2 id="ov-title">Survive the double rock</h2>
+        <p id="ov-text">Dodge both rocks, then pray all six barrage hits. No damage is a clean rep.</p>
+        <dl class="keys" id="ov-keys">
+          <dt>Walk</dt><dd><kbd>Click</kbd></dd>
+          <dt>Walk 1 tile per tick</dt><dd><kbd>Ctrl</kbd> + <kbd>Click</kbd></dd>
+          <dt>Pray</dt><dd><img class="ico" id="ov-ico-pray" alt="">Prayer book</dd>
+          <dt>Toggle run</dt><dd><img class="ico" id="ov-ico-run" alt="">Run orb</dd>
+          <dt>Pause</dt><dd><kbd>Space</kbd></dd>
+          <dt>Next tick</dt><dd><kbd>.</kbd></dd>
+        </dl>
+        <button class="btn play" id="ov-go" type="button">Click here to play</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="bar">
+    <div class="controls" role="group" aria-label="Game">
+      <button class="btn go" id="btn-play" type="button">Start</button>
+      <button class="btn" id="btn-step" type="button" disabled>Next tick</button>
+      <button class="btn" id="btn-restart" type="button">Restart</button>
+    </div>
+    <span class="divider" aria-hidden="true"></span>
+    <div class="controls" role="group" aria-label="Prayer layout">
+      <button class="btn edit" id="btn-edit" type="button" aria-pressed="false">Arrange prayers</button>
+      <button class="btn" id="btn-reset-layout" type="button" hidden>Reset layout</button>
+    </div>
+  </div>
+
+  <section class="panel" id="ruler-block" aria-labelledby="ruler-h">
+    <div class="ruler-head">
+      <h2 id="ruler-h">Tick ruler</h2>
+      <p id="ruler-note">T is the tick Doom throws rock 1. Each cell is one 0.6 s tick.</p>
+    </div>
+    <div class="ruler-wrap"><div class="ruler" id="ruler"></div></div>
+  </section>
+
+  <div class="cards">
+    <div class="stack">
+      <section class="panel" aria-labelledby="rep-h">
+        <h2 id="rep-h">Last rep</h2>
+        <div class="report" id="report"></div>
+      </section>
+
+      <section class="panel" aria-labelledby="ses-h">
+        <h2 id="ses-h">Session</h2>
+        <div class="stats">
+          <div class="stat"><span class="v" id="st-reps">0</span><span class="l">reps</span></div>
+          <div class="stat"><span class="v" id="st-clean">0</span><span class="l">clean</span></div>
+          <div class="stat"><span class="v" id="st-streak">0</span><span class="l">streak</span></div>
+          <div class="stat"><span class="v" id="st-best">0</span><span class="l">best streak</span></div>
+          <div class="stat"><span class="v" id="st-acc">–</span><span class="l">barrage prayed</span></div>
+        </div>
+        <table class="dmg">
+          <thead><tr><th scope="col">Damage taken</th><th scope="col">Times hit</th><th scope="col">Total</th><th scope="col">Per rep</th></tr></thead>
+          <tbody>
+            <tr><th scope="row">Debris</th><td id="st-n-debris">0</td><td id="st-d-debris">0</td><td id="st-a-debris">–</td></tr>
+            <tr><th scope="row">Boulders</th><td id="st-n-boulder">0</td><td id="st-d-boulder">0</td><td id="st-a-boulder">–</td></tr>
+            <tr><th scope="row">Barrage</th><td id="st-n-barrage">0</td><td id="st-d-barrage">0</td><td id="st-a-barrage">–</td></tr>
+          </tbody>
+          <tfoot><tr><th scope="row">All</th><td id="st-n-all">0</td><td id="st-d-all">0</td><td id="st-a-all">–</td></tr></tfoot>
+        </table>
+        <div><button class="btn" id="btn-reset-stats" type="button">Reset session stats</button></div>
+      </section>
+    </div>
+
+    <section class="panel" aria-labelledby="set-h">
+      <h2 id="set-h">Settings</h2>
+      <div class="form">
+        <div class="field"><label for="set-color">Rock colour</label>
+          <select id="set-color"><option value="random">Random</option><option value="mage">Blue (Magic first)</option><option value="range">Green (Ranged first)</option></select></div>
+        <div class="field"><label for="set-death">Hitpoints</label>
+          <select id="set-death"><option value="0">Practice (no death)</option><option value="1">Real (99, can die)</option></select></div>
+        <div class="field"><label for="set-latency">Ping</label>
+          <select id="set-latency"><option value="0">0 ms</option><option value="30">30 ms</option><option value="60">60 ms</option><option value="100">100 ms</option><option value="150">150 ms</option></select></div>
+        <div class="field"><label for="set-camera">Camera</label>
+          <select id="set-camera"><option value="frame">Keeps Doom in view</option><option value="follow">Centred on you</option></select></div>
+        <div class="field"><label for="set-zoom">Zoom</label>
+          <select id="set-zoom"><option value="10.5">Close</option><option value="12">Normal</option><option value="14">Far</option></select></div>
+        <div class="field"><label for="set-ui">Interface scale</label>
+          <select id="set-ui"><option value="auto">Auto</option><option value="1">100%</option><option value="1.25">125%</option></select></div>
+      </div>
+      <div class="sep"></div>
+      <div class="toggles">
+        <div class="col">
+          <fieldset class="tgroup">
+            <legend>Tile markers</legend>
+            <label class="tg"><input type="checkbox" id="set-truetile" checked><span>True tile</span></label>
+            <label class="tg"><input type="checkbox" id="set-hover" checked><span>Hovered tile</span></label>
+            <label class="tg"><input type="checkbox" id="set-grid" checked><span>Tile grid</span></label>
+            <label class="tg"><input type="checkbox" id="set-field"><span>9×9 debris field outline</span></label>
+          </fieldset>
+        </div>
+        <div class="col">
+          <fieldset class="tgroup">
+            <legend>Hints</legend>
+            <label class="tg"><input type="checkbox" id="set-paths" checked><span>Projectile trails and paths</span></label>
+            <label class="tg"><input type="checkbox" id="set-queued"><span>Clicks waiting for the tick</span></label>
+            <label class="tg"><input type="checkbox" id="set-chat" checked><span>Event messages in chat</span></label>
+          </fieldset>
+          <fieldset class="tgroup">
+            <legend>Sound</legend>
+            <label class="tg"><input type="checkbox" id="set-sound" checked><span>Sound effects</span></label>
+            <label class="tg"><input type="checkbox" id="set-metro"><span>Tick metronome</span></label>
+          </fieldset>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" aria-labelledby="log-h">
+      <h2 id="log-h">Tick log</h2>
+      <ol class="log" id="log"><li class="hint"><span class="lt">–</span><span>Every event is stamped with its tick. T+ counts from the first throw.</span></li></ol>
+    </section>
+  </div>
+
+  <footer class="credit">Unofficial fan practice tool, not endorsed by or affiliated with Jagex. Game sprites and renders are property of Jagex, from the OSRS Wiki.</footer>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const A = __ASSETS_JSON__;
+
+  /* ================= world constants (timings in ticks) ================= */
+  const W = 25, H = 25;
+  const BOSS = { x: 10, y: 10, s: 5 };
+  const BOSS_C = [BOSS.x + BOSS.s / 2, BOSS.y + BOSS.s / 2];
+  const R = { THROW1: 0, THROW2: 3, DIP1: 6, BURST1: 7, LAND1: 9, DIP2: 9, BURST2: 10, LAND2: 12, HIT0: 11, END: 16 };
+  const TICK_MS = 600;
+  const ROCK_FLIGHT = 7;
+  // debris per rock: about 18 of the 80 tiles around you, counted in the delve 8 clip; deeper delves keep delve 8's numbers
+  const DEBRIS = 18;
+  // rock flight drawing, in tiles: lift height over Doom, hover height over you, size at full scale, size while high
+  const LIFT_H = 3.3, ROCK_D = 1.9;
+  const LAND_DELAY = 2;
+  const FIELD = 4;
+  const START = { x: 17, y: 6 };
+  const NAME = { mage: 'Magic', range: 'Ranged', melee: 'Melee' };
+  const LETTER = { mage: 'M', range: 'R', melee: 'Me' };
+  const CSSVAR = { mage: '--magic', range: '--range', melee: '--melee' };
+
+  /* ================= prayer book: just the three protection prayers ================= */
+  const PROTECTS = [['mage', 'Protect from Magic'], ['range', 'Protect from Missiles'], ['melee', 'Protect from Melee']];
+  const PRAY_NAME = Object.fromEntries(PROTECTS);
+  // slots count across the 5-wide grid; 1, 2, 3 is row 1 of a filtered book (Last Row Sim), 16, 17, 18 is row 4 of the full one
+  const DEFAULT_PRAY = { mage: 1, range: 2, melee: 3 };
+  const OVERHEAD = { mage: 'Protect from Magic overhead', range: 'Protect from Missiles overhead', melee: 'Protect from Melee overhead' };
+  // native OSRS pixels: prayer box 204x275, 37px cells centred at (28+37c, 33+37r)
+  const PB = { w: 204, h: 275 };
+  const FR = { side: 15, top: 38, bottom: 38 };
+  const PANEL_W = PB.w + FR.side * 2, PANEL_H = PB.h + FR.top + FR.bottom;
+  const cellCentre = (i) => [FR.side + 28 + 37 * (i % 5), FR.top + 33 + 37 * Math.floor(i / 5)];
+
+  /* ================= helpers ================= */
+  const $ = s => document.querySelector(s);
+  const rnd = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
+  const pick = a => a[Math.floor(Math.random() * a.length)];
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const lerp = (a, b, t) => a + (b - a) * t;
+  const key = (x, y) => x + ',' + y;
+  const unkey = k => k.split(',').map(Number);
+  function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+  function rng32(seed) { let s = seed >>> 0; return () => { s = (s + 0x6D2B79F5) >>> 0; let t = s; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+  const rgba = (c, a) => `rgba(${c[0] | 0},${c[1] | 0},${c[2] | 0},${a === undefined ? 1 : a})`;
+  const mixc = (a, b, t) => [lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2], b[2], t)];
+
+  /* ================= settings and stats ================= */
+  const DEFAULTS = {
+    v: 7, latency: 0, color: 'random', death: false, pray: DEFAULT_PRAY,
+    ui: 'auto', zoom: 12, camera: 'frame',
+    chat: true, trueTile: true, hover: true, grid: true, paths: true, field: false, queued: false, sound: true, metro: false,
+  };
+  // settings saved by earlier versions: v3 brought closer zoom steps and the camera that keeps Doom in view;
+  // v4 keeps only the protection prayers (where they sat in the old book);
+  // v5 drops Doom's autos and caps the interface scale at 125%; v6 drops the death memes; v7 drops the Rockblock drill
+  function migrate(s) {
+    if (!s) return s;
+    let o = { ...s };
+    if (!(o.v >= 3)) o = { ...o, zoom: { 11: 10.5, 14: 12, 18: 14 }[o.zoom] || DEFAULTS.zoom, camera: 'frame' };
+    if (!(o.v >= 4)) {
+      let pray = { ...DEFAULT_PRAY };
+      if (o.layout === 'full') pray = { mage: 16, range: 17, melee: 18 };
+      else if (o.layout === 'custom' && Array.isArray(o.custom)) {
+        const at = id => o.custom.indexOf(id);
+        const found = { mage: at('protect_magic'), range: at('protect_missiles'), melee: at('protect_melee') };
+        if (validPray(found)) pray = found;
+      }
+      o = { ...o, pray };
+      for (const k of ['tickMs', 'debris', 'keys', 'ruler', 'titans', 'layout', 'custom', 'mode']) delete o[k];
+    }
+    if (!(o.v >= 5)) {
+      if (Number(o.ui) > 1.25) o.ui = '1.25';
+      delete o.std;
+    }
+    delete o.memes;
+    delete o.drill;
+    o.v = 7;
+    return o;
+  }
+  function validPray(p) {
+    if (!p || typeof p !== 'object') return false;
+    const v = PROTECTS.map(([st]) => p[st]);
+    return v.every(n => Number.isInteger(n) && n >= 0 && n < 30) && new Set(v).size === 3;
+  }
+  const freshStats = () => ({ reps: 0, clean: 0, streak: 0, best: 0, prayOk: 0, prayTotal: 0, dmg: { debris: 0, boulder: 0, barrage: 0 }, hitBy: { debris: 0, boulder: 0, barrage: 0 } });
+  let S = { ...DEFAULTS };
+  let ST = freshStats();
+  function save() {
+    try { localStorage.setItem('drs-settings-v2', JSON.stringify(S)); localStorage.setItem('drs-stats-v2', JSON.stringify(ST)); } catch (e) { /* storage unavailable */ }
+  }
+  function loadSaved() {
+    try { return { s: JSON.parse(localStorage.getItem('drs-settings-v2') || 'null'), st: JSON.parse(localStorage.getItem('drs-stats-v2') || 'null') }; }
+    catch (e) { return { s: null, st: null }; }
+  }
+
+  let G;
+  function newGame(keepStarted) {
+    G = {
+      started: !!keepStarted, running: false, stepping: false, tick: 0, tickAt: 0, lastTickAt: 0, frozenF: 1, stepAnimAt: 0,
+      player: { x: START.x, y: START.y, path: [], trail: [[START.x, START.y]], dest: null, run: true, walkPath: false, prayer: null, hp: 99, stun: 0, shovedTick: -1, face: -1 },
+      boulders: new Map(), pendingBoulders: [], shadows: [], dust: [], fx: [], rocks: [], projs: [], splats: [], chat: [],
+      rep: null, repN: 0, nextRepTick: 6, bossThrowAt: -9, inputs: [], clickMark: null, mouse: null,
+      clearBouldersAt: -1, dead: false, dying: false, deadAt: 0,
+      editing: false, editSel: null, drag: null,
+    };
+  }
+
+  /* ================= grid and pathing ================= */
+  const inBounds = (x, y) => x >= 0 && y >= 0 && x < W && y < H;
+  const isBoss = (x, y) => x >= BOSS.x && x < BOSS.x + BOSS.s && y >= BOSS.y && y < BOSS.y + BOSS.s;
+  const walkable = (x, y) => inBounds(x, y) && !isBoss(x, y) && !G.boulders.has(key(x, y));
+  function canStep(x, y, dx, dy) {
+    if (!walkable(x + dx, y + dy)) return false;
+    if (dx && dy) return walkable(x + dx, y) && walkable(x, y + dy);
+    return true;
+  }
+  const DIRS = [[-1, 0], [1, 0], [0, 1], [0, -1], [-1, 1], [1, 1], [-1, -1], [1, -1]];
+  function bfs(sx, sy) {
+    const d = new Int16Array(W * H).fill(-1);
+    const q = [sx + sy * W];
+    d[q[0]] = 0;
+    for (let i = 0; i < q.length; i++) {
+      const c = q[i], x = c % W, y = (c / W) | 0;
+      for (const [dx, dy] of DIRS) {
+        if (!canStep(x, y, dx, dy)) continue;
+        const n = (x + dx) + (y + dy) * W;
+        if (d[n] < 0) { d[n] = d[c] + 1; q.push(n); }
+      }
+    }
+    return d;
+  }
+  function findPath(sx, sy, tx, ty) {
+    tx = clamp(tx, 0, W - 1); ty = clamp(ty, 0, H - 1);
+    const fromS = bfs(sx, sy);
+    if (fromS[tx + ty * W] < 0) {
+      let best = null, bd = Infinity;
+      for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+        const dist = fromS[x + y * W];
+        if (dist < 0) continue;
+        const dd = (x - tx) ** 2 + (y - ty) ** 2;
+        if (dd < bd || (dd === bd && best && dist < fromS[best[0] + best[1] * W])) { bd = dd; best = [x, y]; }
+      }
+      if (!best) return [];
+      [tx, ty] = best;
+    }
+    if (tx === sx && ty === sy) return [];
+    const toT = bfs(tx, ty);
+    const path = [];
+    let x = sx, y = sy;
+    while (!(x === tx && y === ty) && path.length < 400) {
+      const here = toT[x + y * W];
+      const gx = Math.sign(tx - x), gy = Math.sign(ty - y);
+      const order = [[gx, gy], [gx, 0], [0, gy], ...DIRS];
+      let moved = false;
+      for (const [dx, dy] of order) {
+        if ((!dx && !dy) || !canStep(x, y, dx, dy)) continue;
+        if (toT[(x + dx) + (y + dy) * W] === here - 1) { x += dx; y += dy; path.push([x, y]); moved = true; break; }
+      }
+      if (!moved) break;
+    }
+    return path;
+  }
+
+  /* ================= input: everything waits for the next tick ================= */
+  function queueInput(inp) {
+    if (!G.started || G.dead) return;
+    const now = performance.now();
+    inp.clicked = now;
+    inp.at = now + S.latency;
+    G.inputs.push(inp);
+    if (inp.type === 'pray' && G.rep) G.rep.prayClicks.push({ style: inp.style, clicked: now });
+  }
+  function applyInputs(tickTime) {
+    const keep = [];
+    for (const inp of G.inputs) {
+      if (!G.stepping && inp.at > tickTime) { keep.push(inp); continue; }
+      const P = G.player;
+      if (inp.type === 'pray') P.prayer = P.prayer === inp.style ? null : inp.style;
+      else if (inp.type === 'move') setDestination(inp.x, inp.y, inp.walk);
+      else if (inp.type === 'run') P.run = !P.run;
+    }
+    G.inputs = keep;
+  }
+  function setDestination(x, y, walk) {
+    const P = G.player;
+    P.path = findPath(P.x, P.y, x, y);
+    P.walkPath = !!walk;
+    const last = P.path[P.path.length - 1];
+    P.dest = last ? { x: last[0], y: last[1] } : null;
+  }
+
+  /* ================= the tick ================= */
+  function doTick(tickTime) {
+    if (G.dead) return;
+    G.tick++;
+    const t = G.tick;
+    G.tickAt = tickTime;
+    const P = G.player;
+    applyInputs(tickTime);
+    if (G.rep && G.stepping) G.rep.stepped = true;
+
+    // Doom's side resolves before you move
+    for (const p of G.projs) if (p.hit === t) resolveHit(p);
+    G.projs = G.projs.filter(p => p.hit > t);
+    const landing = G.shadows.filter(s => s.land === t);
+    G.shadows = G.shadows.filter(s => s.land > t);
+    landing.forEach(landDebris);
+    const dropping = G.pendingBoulders.filter(b => b.land === t);
+    G.pendingBoulders = G.pendingBoulders.filter(b => b.land > t);
+    dropping.forEach(landBoulder);
+
+    if (G.rep) repStep(t - G.rep.start);
+    else maybeStartRep(t);
+    launch(t);
+    if (t === G.clearBouldersAt) { G.boulders.clear(); if (!S.death) P.hp = 99; }
+
+    // then you move
+    const bx = P.x, by = P.y;
+    movePlayer();
+    if (P.x !== bx) P.face = P.x > bx ? 1 : -1;
+    if (G.rep) G.rep.moved[t - G.rep.start] = (P.x !== bx || P.y !== by);
+
+    if (G.dying) die();
+    else if (G.rep && t - G.rep.start >= R.END) finishRep();
+    G.dust = G.dust.filter(d => d.until > t);
+    if (S.metro) tone(1250, 0.03, 'sine', 0.03);
+    syncUI();
+  }
+
+  function maybeStartRep(t) {
+    if (G.dead || G.editing) return;
+    if (t < G.nextRepTick) return;
+    startRep(t);
+  }
+
+  function startRep(t) {
+    const color = S.color === 'random' ? pick(['mage', 'range']) : S.color;
+    const other = color === 'mage' ? 'range' : 'mage';
+    G.repN++;
+    G.rep = {
+      n: G.repN, start: t, color, pattern: [color, other, color, color, other, color],
+      b1: null, b2: null, d1: 0, d2: 0, shadow1: null, hits: [], dmg: { debris: 0, boulder: 0, barrage: 0 }, hitBy: { debris: 0, boulder: 0, barrage: 0 },
+      moved: {}, prayClicks: [], burstAt: {}, wipedEarly: false, stepped: G.stepping,
+    };
+    log(`Rep ${G.repN}: Doom lifts a ${color === 'mage' ? 'glowing blue' : 'green'} rock.`, '', '#ffffff');
+    repStep(0);
+  }
+
+  function repStep(r) {
+    switch (r) {
+      case R.THROW1: throwRock(1); break;
+      case R.THROW2: throwRock(2); break;
+      case R.DIP1: log('Rock 1 dips.', 'hint', '#ffff00'); break;
+      case R.BURST1: burst(1); break;
+      case R.BURST2: burst(2); spawnBarrage(); break;
+    }
+    if (r === R.DIP2) log('Rock 2 dips.', 'hint', '#ffff00');
+  }
+
+  function throwRock(id) {
+    G.rocks.push({ id, color: G.rep.color, thrown: G.tick, burst: G.tick + ROCK_FLIGHT });
+    G.bossThrowAt = G.tick;
+    log(`Rock ${id} thrown. It bursts on T+${G.tick - G.rep.start + ROCK_FLIGHT}.`, '', '#ffffff');
+    sfx('throw');
+  }
+
+  function burst(id) {
+    const rep = G.rep, P = G.player, t = G.tick;
+    G.rocks = G.rocks.filter(k => k.id !== id);
+    const cx = P.x, cy = P.y;
+    rep['b' + id] = { x: cx, y: cy, hit: 0 };
+    rep.burstAt[id] = G.tickAt;
+    G.pendingBoulders.push({ id, x: cx, y: cy, land: t + LAND_DELAY, born: t, seed: rnd(1, 1e6) });
+    const banned = id === 2 && rep.shadow1 ? rep.shadow1 : new Set();
+    const cand = [];
+    for (let dy = -FIELD; dy <= FIELD; dy++) for (let dx = -FIELD; dx <= FIELD; dx++) {
+      const x = cx + dx, y = cy + dy, k = key(x, y);
+      if ((!dx && !dy) || !inBounds(x, y) || isBoss(x, y) || G.boulders.has(k) || banned.has(k)) continue;
+      cand.push(k);
+    }
+    const n = Math.round(DEBRIS * cand.length / 80);
+    const tiles = new Set(shuffle(cand).slice(0, n));
+    const frags = [...tiles].map(k => ({ k, xy: unkey(k), spr: rnd(0, FRAG_N - 1), spin: (Math.random() - 0.5) * 7, delay: Math.random() * 0.15 }));
+    G.shadows.push({ id, tiles, frags, cx, cy, born: t, land: t + LAND_DELAY });
+    if (id === 1) rep.shadow1 = tiles;
+
+    const had = P.prayer;
+    P.prayer = null;
+    if (id === 2 && had) {
+      rep.wipedEarly = true;
+      log(`Rock 2 bursts and switches off the ${NAME[had]} prayer you clicked between bursts.`, 'bad', '#ff3030');
+    } else {
+      log(`Rock ${id} bursts. Your protection prayer is switched off.`, '', '#ff981f');
+    }
+    G.fx.push({ kind: 'burst', x: cx + 0.5, y: cy + 0.5, h: 2.2, color: rep.color, t0: performance.now(), dur: 650, seed: rnd(1, 1e6) });
+    sfx('burst');
+  }
+
+  // The six projectiles rise out of the debris around you, each from a different side than the one before,
+  // never from straight above where your overhead icons would hide them.
+  // Each one appears on its launch tick, a fixed distance per tick of flight away from wherever you stand then.
+  function spawnBarrage() {
+    const rep = G.rep, t = G.tick;
+    const turn = rnd(0, 5), base = -Math.PI / 3 + (Math.random() - 0.5) * 0.16, ORDER = [0, 3, 1, 4, 2, 5];
+    rep.pattern.forEach((style, i) => {
+      const hit = rep.start + R.HIT0 + i, spawn = Math.max(t, hit - 2);
+      const ang = base + ((ORDER[i] + turn) % 6) * Math.PI / 3 + (Math.random() - 0.5) * 0.3;
+      G.projs.push({ kind: 'rock', idx: i, style, spawn, hit, ang, dist: 0.4 + 1.2 * (hit - spawn), from: null, fh: 1.2 });
+    });
+    launch(t);
+  }
+  function launch(t) {
+    const P = G.player;
+    for (const p of G.projs) if (!p.from && p.spawn <= t) p.from = [P.x + 0.5 + Math.cos(p.ang) * p.dist, P.y + 0.5 + Math.sin(p.ang) * p.dist];
+  }
+
+  function landDebris(sh) {
+    const P = G.player, rep = G.rep;
+    const hit = sh.tiles.has(key(P.x, P.y));
+    sh.tiles.forEach(k => { const [x, y] = unkey(k); G.dust.push({ x, y, until: G.tick + 3, seed: Math.random() * 1000 }); });
+    const now = performance.now();
+    sh.tiles.forEach(k => { const [x, y] = unkey(k); G.fx.push({ kind: 'puff', x: x + 0.5, y: y + 0.5, t0: now + Math.random() * 60, dur: 520, seed: Math.random() * 1000 }); });
+    sfx('land');
+    if (hit) {
+      const d = rnd(15, 21);
+      hurt(d, 'debris');
+      if (rep) rep['d' + sh.id] = d;
+      log(`Rock ${sh.id} debris lands on you for ${hs(d)}.`, 'bad', '#ff3030');
+    } else {
+      log(`Rock ${sh.id} debris lands. You were clear.`, 'ok', '#7cff7c');
+    }
+  }
+
+  function landBoulder(b) {
+    const P = G.player, rep = G.rep;
+    G.boulders.set(key(b.x, b.y), { x: b.x, y: b.y, seed: b.seed });
+    G.fx.push({ kind: 'puff', x: b.x + 0.5, y: b.y + 0.5, t0: performance.now(), dur: 600, seed: b.seed, big: true });
+    if (P.x === b.x && P.y === b.y) {
+      const d = rnd(15, 21);
+      hurt(d, 'boulder');
+      if (rep && rep['b' + b.id]) rep['b' + b.id].hit = d;
+      const opts = [];
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if ((dx || dy) && walkable(b.x + dx, b.y + dy)) opts.push([b.x + dx, b.y + dy]);
+      if (opts.length) { const [x, y] = pick(opts); P.trail = [[P.x, P.y], [x, y]]; P.x = x; P.y = y; P.shovedTick = G.tick; }
+      P.path = []; P.dest = null; P.stun = 2;
+      log(`Boulder ${b.id} lands on you for ${hs(d)} and shoves you aside.`, 'bad', '#ff3030');
+    }
+  }
+
+  function resolveHit(p) {
+    const P = G.player, rep = G.rep;
+    const ok = P.prayer === p.style;
+    let d = 0;
+    G.fx.push({ kind: 'impact', style: p.style, t0: performance.now(), dur: 420, seed: Math.random() * 1000 });
+    if (ok) { splat(0); sfx('block'); }
+    else { d = rnd(15, 65); hurt(d, 'barrage'); }
+    if (rep) rep.hits[p.idx] = { style: p.style, ok, d };
+    const what = `Barrage ${p.idx + 1} (${NAME[p.style]})`;
+    log(ok ? `${what} blocked.` : `${what} hits you for ${hs(d)}. ${P.prayer ? `You were on ${NAME[P.prayer]}.` : 'No prayer on.'}`, ok ? 'ok' : 'bad', ok ? '#7cff7c' : '#ff3030');
+  }
+
+  // In Real hitpoints you die at the end of the tick; in Practice you stay on 1 hitpoint
+  function hurt(d, src) {
+    const P = G.player;
+    P.hp -= d;
+    if (G.rep) { G.rep.dmg[src] += d; G.rep.hitBy[src]++; }
+    splat(d);
+    sfx('hit');
+    if (P.hp > 0) return;
+    if (S.death) { G.dying = true; return; }
+    P.hp = 1;
+    if (G.rep && !G.rep.wouldDie) {
+      G.rep.wouldDie = true;
+      log('That would have killed you. Practice hitpoints keep you on 1.', 'hint', '#ff981f');
+    }
+  }
+
+  function movePlayer() {
+    const P = G.player;
+    if (P.shovedTick !== G.tick) P.trail = [[P.x, P.y]];
+    if (P.stun > 0) { P.stun--; return; }
+    let steps = P.run && !P.walkPath ? 2 : 1, recomputed = false;
+    while (steps > 0 && P.path.length) {
+      const [nx, ny] = P.path[0];
+      if (Math.abs(nx - P.x) > 1 || Math.abs(ny - P.y) > 1 || !canStep(P.x, P.y, nx - P.x, ny - P.y)) {
+        if (recomputed || !P.dest) { P.path = []; break; }
+        P.path = findPath(P.x, P.y, P.dest.x, P.dest.y);
+        recomputed = true;
+        continue;
+      }
+      P.path.shift();
+      P.x = nx; P.y = ny;
+      P.trail.push([nx, ny]);
+      steps--;
+    }
+    if (!P.path.length) P.dest = null;
+  }
+
+  // add a finished (or fatal) rep to the session: its damage, the barrage hits that resolved, the streak
+  function recordRep(rep, died) {
+    const total = Object.values(rep.dmg).reduce((a, b) => a + b, 0);
+    const resolved = rep.hits.filter(Boolean);
+    const clean = !died && total === 0;
+    rep.total = total;
+    rep.clean = clean;
+    rep.died = died;
+    ST.reps++;
+    for (const k of Object.keys(ST.dmg)) { ST.dmg[k] += rep.dmg[k] || 0; ST.hitBy[k] += rep.hitBy[k] || 0; }
+    ST.prayOk += resolved.filter(h => h.ok).length;
+    ST.prayTotal += resolved.length;
+    if (clean) { ST.clean++; ST.streak++; ST.best = Math.max(ST.best, ST.streak); } else ST.streak = 0;
+    save();
+    renderReport(rep, false);
+    return { total, clean };
+  }
+  function finishRep() {
+    const rep = G.rep;
+    G.rep = null;
+    const { total, clean } = recordRep(rep, false);
+    G.nextRepTick = G.tick + rnd(5, 8);
+    G.clearBouldersAt = G.tick + 4;
+    log(clean ? `Rep ${rep.n} clean!` : `Rep ${rep.n} done. You took ${hs(total)} damage.`, clean ? 'ok' : 'bad', clean ? '#7cff7c' : '#ff3030');
+  }
+
+  function die() {
+    G.dying = false;
+    G.dead = true;
+    G.deadAt = performance.now();
+    G.running = false;
+    if (G.rep) { recordRep(G.rep, true); G.rep = null; }
+    ST.streak = 0;
+    save();
+    log('Oh dear, you are dead!', 'bad', '#ff3030');
+    showOverlay('dead');
+  }
+
+  /* ================= feedback ================= */
+  function splat(d) {
+    const now = performance.now();
+    G.splats = G.splats.filter(s => now - s.t0 < 1200);
+    G.splats.push({ d, t0: now, slot: G.splats.length % 4 });
+  }
+  // Damage in a message is wrapped by hs(); the page draws it as a hitsplat, the in-game chat as a plain number
+  const DMG = '\uE000';
+  const hs = d => DMG + d + DMG;
+  // Page hitsplats use the in-game splat's bitmap digits, drawn once per number at 2x for sharp screens.
+  // The number stays in the element as (invisible) text for screen readers and copying.
+  const splatDigits = new Map();
+  function splatHTML(d) {
+    const str = String(d);
+    let dg = splatDigits.get(str);
+    if (!dg) {
+      const P = 2, w = textWidth(str, 1) + 1, c = document.createElement('canvas');
+      c.width = w * P; c.height = 9 * P;
+      const g = c.getContext('2d');
+      let x = 0;
+      for (const ch of str) {
+        const gl = GLYPH[ch] || [];
+        for (const [col, off] of [['#000', P], ['#fff', 0]]) {
+          g.fillStyle = col;
+          for (let r = 0; r < gl.length; r++) for (let k = 0; k < gl[r].length; k++) if (gl[r][k] === '#') g.fillRect(x + k * P + off, r * P + off, P, P);
+        }
+        x += glyphAdvance(ch) * P;
+      }
+      dg = { uri: c.toDataURL(), w };
+      splatDigits.set(str, dg);
+    }
+    return `<span class="hs${+d ? '' : ' zero'}" style="--hs-n:url(${dg.uri});--hs-w:${dg.w}px;width:${Math.max(24, dg.w + 6)}px">${str}</span>`;
+  }
+  function withSplats(el, msg) {
+    el.replaceChildren(...msg.split(DMG).map((part, i) => {
+      if (i % 2 === 0) return part;
+      const t = document.createElement('template');
+      t.innerHTML = splatHTML(part);
+      return t.content.firstChild;
+    }));
+  }
+  const logEl = $('#log');
+  function log(msg, tone, chatColor) {
+    const r = G.rep ? G.tick - G.rep.start : null;
+    const stamp = r !== null ? 'T+' + r : 't' + G.tick;
+    const li = document.createElement('li');
+    if (tone) li.className = tone;
+    const a = document.createElement('span');
+    a.className = 'lt';
+    a.textContent = stamp;
+    const b = document.createElement('span');
+    withSplats(b, msg);
+    li.append(a, b);
+    logEl.prepend(li);
+    while (logEl.children.length > 90) logEl.lastChild.remove();
+    G.chat.push({ stamp, msg: msg.split(DMG).join(''), color: chatColor || '#ffffff' });
+    if (G.chat.length > 6) G.chat.shift();
+  }
+
+  /* ================= sound ================= */
+  let AC = null;
+  function tone(freq, dur, type, vol, slide) {
+    try {
+      if (!AC) AC = new (window.AudioContext || window.webkitAudioContext)();
+      if (AC.state === 'suspended') AC.resume();
+      const o = AC.createOscillator(), g = AC.createGain(), t0 = AC.currentTime;
+      o.type = type;
+      o.frequency.setValueAtTime(freq, t0);
+      if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(30, freq + slide), t0 + dur);
+      g.gain.setValueAtTime(vol, t0);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+      o.connect(g).connect(AC.destination);
+      o.start(t0);
+      o.stop(t0 + dur + 0.02);
+    } catch (e) { /* audio unavailable */ }
+  }
+  function sfx(kind) {
+    if (!S.sound) return;
+    if (kind === 'throw') tone(150, 0.25, 'triangle', 0.07, -60);
+    else if (kind === 'burst') tone(90, 0.35, 'sawtooth', 0.05, -50);
+    else if (kind === 'land') tone(70, 0.22, 'triangle', 0.09, -25);
+    else if (kind === 'hit') tone(210, 0.12, 'square', 0.035, -120);
+    else if (kind === 'block') tone(620, 0.05, 'sine', 0.03);
+    else if (kind === 'pray') tone(880, 0.04, 'sine', 0.02);
+  }
+
+  /* ================= images and procedural sprites ================= */
+  const IMG = {};
+  function loadImg(name, src) { const im = new Image(); im.src = src; IMG[name] = im; return im; }
+  const ready = im => im && im.complete && im.naturalWidth > 0;
+  const mk = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; };
+  if (!CanvasRenderingContext2D.prototype.roundRect) CanvasRenderingContext2D.prototype.roundRect = function (x, y, w, h) { this.rect(x, y, w, h); };
+  const pxs = k => Math.max(1, Math.round(V.ui * k * 2) / 2);
+
+  const PAL = {
+    mage: { light: [214, 238, 255], mid: [92, 162, 238], dark: [28, 78, 168], edge: [8, 26, 66], alpha: 0.9, glow: 'rgba(120,196,255,0.95)' },
+    range: { light: [186, 170, 104], mid: [122, 112, 62], dark: [60, 56, 30], edge: [18, 16, 6], alpha: 1, glow: 'rgba(120,230,90,0.9)' },
+    boulder: { light: [150, 142, 116], mid: [98, 92, 74], dark: [48, 45, 36], edge: [14, 12, 8], alpha: 1 },
+    frag: { lightA: [232, 158, 58], lightB: [204, 132, 44], darkA: [98, 110, 46], darkB: [72, 82, 34], mid: [150, 118, 50], edge: [30, 22, 8], alpha: 1 },
+  };
+  function facetedRock(size, seed, pal, o) {
+    const c = mk(size, size), g = c.getContext('2d'), rr = rng32(seed);
+    const cx = size / 2, cy = size / 2, Rr = size * (o.r || 0.38), n = o.n || 9;
+    const pts = [];
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2 + (rr() - 0.5) * 0.55;
+      const r = Rr * (o.jag ? 0.5 + rr() * 0.5 : 0.8 + rr() * 0.2);
+      pts.push([cx + Math.cos(a) * r, cy + Math.sin(a) * r * (o.squash || 1)]);
+    }
+    const core = [cx - Rr * 0.18 + (rr() - 0.5) * Rr * 0.2, cy - Rr * 0.24 + (rr() - 0.5) * Rr * 0.2];
+    const outline = () => { g.beginPath(); pts.forEach((p, i) => i ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1])); g.closePath(); };
+    if (pal.glow) { g.save(); g.shadowColor = pal.glow; g.shadowBlur = size * 0.16; outline(); g.fillStyle = rgba(pal.mid || pal.lightA); g.fill(); g.restore(); }
+    for (let i = 0; i < n; i++) {
+      const p1 = pts[i], p2 = pts[(i + 1) % n];
+      const mx = (p1[0] + p2[0]) / 2 - cx, my = (p1[1] + p2[1]) / 2 - cy;
+      const lit = Math.cos(Math.atan2(my, mx) + 2.36);
+      let col;
+      if (o.twoTone) col = lit > -0.15 ? mixc(pal.lightA, pal.lightB, rr()) : mixc(pal.darkA, pal.darkB, rr());
+      else col = mixc(pal.dark, pal.light, clamp(0.5 + 0.48 * lit + (rr() - 0.5) * 0.28, 0, 1));
+      g.fillStyle = rgba(col, pal.alpha);
+      g.beginPath(); g.moveTo(core[0], core[1]); g.lineTo(p1[0], p1[1]); g.lineTo(p2[0], p2[1]); g.closePath(); g.fill();
+      g.strokeStyle = rgba(pal.edge, 0.35); g.lineWidth = 1; g.stroke();
+    }
+    if (o.sparkle) {
+      for (let i = 0; i < 4; i++) {
+        const a = rr() * Math.PI * 2, d = rr() * Rr * 0.55;
+        g.fillStyle = 'rgba(255,255,255,0.55)';
+        g.beginPath(); g.arc(cx + Math.cos(a) * d - Rr * 0.15, cy + Math.sin(a) * d - Rr * 0.15, size * 0.018 + rr() * size * 0.02, 0, Math.PI * 2); g.fill();
+      }
+    }
+    outline(); g.strokeStyle = rgba(pal.edge); g.lineWidth = Math.max(1.5, size * 0.028); g.stroke();
+    return c;
+  }
+  const FRAG_N = 6;
+  const SPR = {};
+  function buildSprites() {
+    SPR.magic = facetedRock(160, 11, PAL.mage, { n: 11, r: 0.36, sparkle: true });
+    SPR.range = facetedRock(160, 23, PAL.range, { n: 10, r: 0.36 });
+    SPR.frag = [];
+    for (let i = 0; i < FRAG_N; i++) SPR.frag.push(facetedRock(72, 100 + i * 17, PAL.frag, { n: 5 + (i % 3), r: 0.42, jag: true, twoTone: true, squash: 0.8 }));
+    SPR.boulder = [];
+    for (let i = 0; i < 4; i++) SPR.boulder.push(facetedRock(112, 300 + i * 31, PAL.boulder, { n: 9, r: 0.4, squash: 0.82 }));
+  }
+
+  /* floor: per-vertex colours blended across tiles, like OSRS terrain shading */
+  const FLOOR = { M: 7, T: 16, canvas: null };
+  function buildFloor() {
+    const { M, T } = FLOOR;
+    const vx = W + 2 * M + 1, vy = H + 2 * M + 1, w = (vx - 1) * T, h = (vy - 1) * T;
+    const c = mk(w, h), g = c.getContext('2d'), img = g.createImageData(w, h), rr = rng32(4242);
+    const vc = new Float32Array(vx * vy * 3);
+    for (let j = 0; j < vy; j++) for (let i = 0; i < vx; i++) {
+      const tx = i - M, ty = j - M;
+      const inside = tx >= 0 && ty >= 0 && tx <= W && ty <= H;
+      const edge = Math.min(tx, ty, W - tx, H - ty);
+      const n = rr(), n2 = Math.sin(i * 0.61 + j * 0.23) * 0.5 + Math.cos(j * 0.47 - i * 0.19) * 0.5;
+      let col;
+      if (inside) { const k = 0.82 + n * 0.28 + n2 * 0.08 - (edge === 0 ? 0.18 : 0); col = [80 * k, 42 * k, 25 * k]; }
+      else { const k = clamp(0.62 + n * 0.45 + edge * 0.04, 0.3, 1.1); col = [52 * k, 34 * k, 24 * k]; }
+      vc.set(col, (j * vx + i) * 3);
+    }
+    const d = img.data;
+    for (let y = 0; y < h; y++) {
+      const fy = y / T, j0 = Math.floor(fy), v = fy - j0;
+      for (let x = 0; x < w; x++) {
+        const fx = x / T, i0 = Math.floor(fx), u = fx - i0;
+        const a = (j0 * vx + i0) * 3, b = a + 3, cc = a + vx * 3, dd = cc + 3;
+        const nz = ((Math.sin(x * 12.9898 + y * 78.233) * 43758.5453) % 1) * 7;
+        for (let k = 0; k < 3; k++) {
+          const top = vc[a + k] * (1 - u) + vc[b + k] * u, bot = vc[cc + k] * (1 - u) + vc[dd + k] * u;
+          d[(y * w + x) * 4 + k] = top * (1 - v) + bot * v + nz;
+        }
+        d[(y * w + x) * 4 + 3] = 255;
+      }
+    }
+    g.putImageData(img, 0, 0);
+    // rock wall clutter outside the arena and a lip along the edge
+    for (let i = 0; i < 260; i++) {
+      const x = rr() * w, y = rr() * h, tx = x / T - M, ty = y / T - M;
+      if (tx > -0.6 && ty > -0.6 && tx < W + 0.6 && ty < H + 0.6) continue;
+      const r = (0.5 + rr() * 1.4) * T;
+      const gr = g.createRadialGradient(x - r * 0.3, y - r * 0.3, r * 0.1, x, y, r);
+      gr.addColorStop(0, 'rgba(96,66,46,0.9)'); gr.addColorStop(1, 'rgba(20,12,8,0.85)');
+      g.fillStyle = gr; g.beginPath(); g.ellipse(x, y, r, r * 0.8, rr() * 3, 0, Math.PI * 2); g.fill();
+    }
+    g.strokeStyle = 'rgba(0,0,0,0.75)'; g.lineWidth = 3;
+    g.strokeRect(M * T - 1.5, M * T - 1.5, W * T + 3, H * T + 3);
+    g.strokeStyle = 'rgba(150,104,66,0.5)'; g.lineWidth = 1;
+    g.strokeRect(M * T + 1, M * T + 1, W * T - 2, H * T - 2);
+    // a few darker cracks on the floor
+    g.strokeStyle = 'rgba(30,14,8,0.45)'; g.lineWidth = 1.2;
+    for (let i = 0; i < 40; i++) {
+      let x = (M + rr() * W) * T, y = (M + rr() * H) * T;
+      g.beginPath(); g.moveTo(x, y);
+      for (let s = 0; s < 4; s++) { x += (rr() - 0.5) * T * 1.4; y += (rr() - 0.5) * T * 1.4; g.lineTo(x, y); }
+      g.stroke();
+    }
+    FLOOR.canvas = c;
+  }
+
+  /* stone frame of the side panel, drawn once per interface scale */
+  let PANEL = null;
+  function stone(g, x, y, w, h, r, seed) {
+    const rr = rng32(seed);
+    g.save();
+    g.beginPath(); g.roundRect(x + 0.5, y + 0.5, w - 1, h - 1, r);
+    const gr = g.createLinearGradient(x, y, x + w * 0.3, y + h);
+    gr.addColorStop(0, '#7b7160'); gr.addColorStop(0.55, '#625949'); gr.addColorStop(1, '#4a4336');
+    g.fillStyle = gr; g.fill();
+    g.clip();
+    for (let i = 0; i < 18; i++) {
+      g.fillStyle = rr() > 0.5 ? 'rgba(255,240,215,0.07)' : 'rgba(0,0,0,0.09)';
+      g.beginPath(); g.arc(x + rr() * w, y + rr() * h, 1.5 + rr() * w * 0.25, 0, Math.PI * 2); g.fill();
+    }
+    g.fillStyle = 'rgba(255,248,230,0.10)'; g.fillRect(x, y, w, Math.max(1, h * 0.18));
+    g.restore();
+    g.beginPath(); g.roundRect(x + 0.5, y + 0.5, w - 1, h - 1, r);
+    g.strokeStyle = '#000'; g.lineWidth = 1; g.stroke();
+  }
+  function pillar(g, x, y, w, h) {
+    const gr = g.createLinearGradient(x, 0, x + w, 0);
+    gr.addColorStop(0, '#4a4234'); gr.addColorStop(0.35, '#6e6553'); gr.addColorStop(0.7, '#5a5142'); gr.addColorStop(1, '#3a3328');
+    g.fillStyle = gr; g.fillRect(x, y, w, h);
+    g.fillStyle = 'rgba(0,0,0,0.28)';
+    for (let i = x + 3; i < x + w - 1; i += 3) g.fillRect(i, y + 10, 1, h - 10);
+    g.fillStyle = '#6a604f'; g.fillRect(x - 1, y, w + 2, 7);
+    g.strokeStyle = '#000'; g.lineWidth = 1; g.strokeRect(x - 0.5, y + 0.5, w + 1, 6); g.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+  }
+  function buildPanel(ui, dpr) {
+    const c = mk(Math.ceil(PANEL_W * ui * dpr), Math.ceil(PANEL_H * ui * dpr)), g = c.getContext('2d');
+    g.scale(ui * dpr, ui * dpr);
+    pillar(g, 2, FR.top - 2, FR.side - 3, PB.h + 4);
+    pillar(g, PANEL_W - FR.side + 1, FR.top - 2, FR.side - 3, PB.h + 4);
+    // the prayer box with its bevel
+    const bx = FR.side, by = FR.top;
+    g.fillStyle = '#000'; g.fillRect(bx, by, PB.w, PB.h);
+    g.fillStyle = '#7d7563'; g.fillRect(bx + 1, by + 1, PB.w - 2, PB.h - 2);
+    g.fillStyle = '#574f3f'; g.fillRect(bx + 2, by + 2, PB.w - 4, PB.h - 4);
+    g.fillStyle = '#403928'; g.fillRect(bx + 5, by + 5, PB.w - 10, PB.h - 10);
+    g.fillStyle = '#3e3529'; g.fillRect(bx + 6, by + 6, PB.w - 12, PB.h - 12);
+    // 7 stones top and bottom
+    const sw = PANEL_W / 7;
+    for (let i = 0; i < 7; i++) {
+      stone(g, i * sw, 0, sw + 0.5, FR.top, i === 0 || i === 6 ? 13 : 8, 50 + i);
+      stone(g, i * sw, PANEL_H - FR.bottom, sw + 0.5, FR.bottom, i === 0 || i === 6 ? 13 : 8, 80 + i);
+    }
+    // prayer points row and the Filters button
+    if (ready(IMG['Prayer icon'])) { g.imageSmoothingEnabled = false; g.drawImage(IMG['Prayer icon'], bx + 32, by + 245, 17, 17); }
+    g.fillStyle = '#2c2a23'; g.fillRect(bx + 127, by + 246, 44, 16);
+    g.strokeStyle = '#000'; g.lineWidth = 1; g.strokeRect(bx + 127.5, by + 246.5, 43, 15);
+    g.strokeStyle = '#706351'; g.strokeRect(bx + 128.5, by + 247.5, 41, 13);
+    g.font = '600 10px Barlow, Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillStyle = '#000'; g.fillText('Filters', bx + 150, by + 255);
+    g.fillStyle = '#ff981f'; g.fillText('Filters', bx + 149, by + 254);
+    PANEL = { canvas: c, ui, dpr };
+  }
+
+  /* bitmap digits in the style of the game's bold font */
+  const GLYPH = {
+    '0': [' #### ', '##  ##', '##  ##', '##  ##', '##  ##', '##  ##', '##  ##', ' #### '],
+    '1': ['  ##  ', ' ###  ', '####  ', '  ##  ', '  ##  ', '  ##  ', '  ##  ', '######'],
+    '2': [' #### ', '##  ##', '    ##', '   ## ', '  ##  ', ' ##   ', '##    ', '######'],
+    '3': [' #### ', '##  ##', '    ##', '  ### ', '    ##', '    ##', '##  ##', ' #### '],
+    '4': ['   ## ', '  ### ', ' # ## ', '#  ## ', '######', '   ## ', '   ## ', '   ## '],
+    '5': ['######', '##    ', '##    ', '##### ', '    ##', '    ##', '##  ##', ' #### '],
+    '6': [' #### ', '##    ', '##    ', '##### ', '##  ##', '##  ##', '##  ##', ' #### '],
+    '7': ['######', '    ##', '   ## ', '   ## ', '  ##  ', '  ##  ', ' ##   ', ' ##   '],
+    '8': [' #### ', '##  ##', '##  ##', ' #### ', '##  ##', '##  ##', '##  ##', ' #### '],
+    '9': [' #### ', '##  ##', '##  ##', '##  ##', ' #####', '    ##', '    ##', ' #### '],
+    '/': ['     #', '    ##', '   ## ', '   #  ', '  ##  ', ' ##   ', ' #    ', '##    '],
+    '+': ['      ', '  ##  ', '  ##  ', '######', '######', '  ##  ', '  ##  ', '      '],
+    '-': ['      ', '      ', '      ', '######', '######', '      ', '      ', '      '],
+    'T': ['######', '######', '  ##  ', '  ##  ', '  ##  ', '  ##  ', '  ##  ', '  ##  '],
+    '.': ['', '', '', '', '', '', '##', '##'],
+  };
+  const glyphAdvance = ch => ch === ' ' || ch === '.' ? 3 : 7;
+  function textWidth(str, p) { let w = 0; for (const ch of str) w += glyphAdvance(ch) * p; return w - p; }
+  function bitText(g, str, x, y, p, color, align) {
+    const w = textWidth(str, p);
+    let cx = align === 'center' ? x - w / 2 : align === 'right' ? x - w : x;
+    const y0 = y - 4 * p;
+    for (const ch of str) {
+      const gl = GLYPH[ch];
+      if (gl) {
+        for (let pass = 0; pass < 2; pass++) {
+          g.fillStyle = pass ? color : '#000';
+          const off = pass ? 0 : Math.max(1, p * 0.75);
+          for (let r = 0; r < 8; r++) for (let c = 0; c < 6; c++) if (gl[r][c] === '#') g.fillRect(cx + c * p + off, y0 + r * p + off, p, p);
+        }
+      }
+      cx += glyphAdvance(ch) * p;
+    }
+  }
+
+  /* ================= view and camera ================= */
+  const cv = $('#game');
+  const ctx = cv.getContext('2d');
+  // V.rx0..rx1 / ry0..ry1 is the open view left of the side panel; TS0 is the zoom setting, TS the zoom in use
+  const V = { cw: 960, ch: 540, dpr: 1, ui: 1, TS: 40, TS0: 40, ax: 0, ay: 0, px: 0, py: 0, pw: 0, ph: 0, rx0: 0, rx1: 0, ry0: 0, ry1: 0 };
+  const cam = { x: START.x + 0.5, y: START.y + 0.5, init: false };
+  // the part of Doom that has to stay on screen: its body, minus the horn tips and the points of its jaws
+  const DOOM_VIEW = { x0: BOSS_C[0] - 2.9, x1: BOSS_C[0] + 2.9, y0: BOSS.y + 0.5, y1: BOSS.y + BOSS.s - 0.1 };
+  // and around you: room for the rocks hovering over your head, and a few tiles to run to
+  const YOU_VIEW = { side: 3, up: 3.9, down: 3.5 };
+  function layout() {
+    const r = cv.getBoundingClientRect();
+    V.cw = Math.max(320, Math.round(r.width));
+    V.ch = Math.max(180, Math.round(r.height));
+    V.dpr = Math.min(window.devicePixelRatio || 1, 2);
+    cv.width = Math.round(V.cw * V.dpr);
+    cv.height = Math.round(V.ch * V.dpr);
+    V.ui = S.ui === 'auto' ? clamp((V.ch * 0.62) / PANEL_H, 0.55, 1.25) : Math.min(1.25, Number(S.ui) || 1);
+    V.pw = PANEL_W * V.ui; V.ph = PANEL_H * V.ui;
+    V.px = V.cw - V.pw; V.py = V.ch - V.ph;
+    V.TS0 = Math.max(14, V.ch / S.zoom);
+    V.rx0 = 6; V.rx1 = V.px - 6; V.ry0 = 6; V.ry1 = V.ch - 6;
+    V.ax = (V.rx0 + V.rx1) / 2;
+    V.ay = (V.ry0 + V.ry1) / 2;
+    cam.init = false;
+    buildPanel(V.ui, V.dpr);
+  }
+  const sx = wx => V.ax + (wx - cam.x) * V.TS;
+  const sy = wy => V.ay + (wy - cam.y) * V.TS;
+  // Follows you like the game, aimed a little toward Doom, held back so that Doom never leaves the open view,
+  // and zooming out only when you are too far from Doom for both to fit
+  function camGoal(pp) {
+    const px = pp[0] + 0.5, py = pp[1] + 0.5;
+    const b = { x0: Math.max(px - YOU_VIEW.side, -0.5), x1: Math.min(px + YOU_VIEW.side, W + 0.5), y0: py - YOU_VIEW.up, y1: Math.min(py + YOU_VIEW.down, H + 0.5) };
+    const frame = S.camera === 'frame';
+    if (frame) {
+      b.x0 = Math.min(b.x0, DOOM_VIEW.x0); b.x1 = Math.max(b.x1, DOOM_VIEW.x1);
+      b.y0 = Math.min(b.y0, DOOM_VIEW.y0); b.y1 = Math.max(b.y1, DOOM_VIEW.y1);
+    }
+    const ts = frame ? Math.min(V.TS0, (V.rx1 - V.rx0) / (b.x1 - b.x0), (V.ry1 - V.ry0) / (b.y1 - b.y0)) : V.TS0;
+    // also show the air above Doom where it lifts the rocks, as far as that fits without zooming out
+    if (frame) b.y0 = Math.min(b.y0, Math.max(ROCK_HEAD[1] - LIFT_H - ROCK_D / 2 - 0.6, b.y1 - (V.ry1 - V.ry0) / ts));
+    const axis = (pref, lo, hi, a, r0, r1, room) => {
+      // show at most 3 tiles past the walls, unless the box needs more
+      const wallLo = a / ts - 3, wallHi = room + 3 - (r1 - a) / ts;
+      const c = wallLo > wallHi ? room / 2 : clamp(pref, wallLo, wallHi);
+      const boxLo = hi - (r1 - a) / ts, boxHi = lo + (a - r0) / ts;
+      return boxLo > boxHi ? (lo + hi) / 2 : clamp(c, boxLo, boxHi);
+    };
+    const lean = frame ? 0.4 : 0;
+    return { ts, x: axis(lerp(px, BOSS_C[0], lean), b.x0, b.x1, V.ax, V.rx0, V.rx1, W), y: axis(lerp(py, BOSS_C[1], lean), b.y0, b.y1, V.ay, V.ry0, V.ry1, H) };
+  }
+  function updateCam(pp, dt) {
+    const g = camGoal(pp);
+    if (!cam.init) { cam.x = g.x; cam.y = g.y; V.TS = g.ts; cam.init = true; return; }
+    const k = 1 - Math.exp(-dt / 140), kz = 1 - Math.exp(-dt / 260);
+    V.TS += (g.ts - V.TS) * kz;
+    cam.x += (g.x - cam.x) * k;
+    cam.y += (g.y - cam.y) * k;
+  }
+
+  /* ================= rendering ================= */
+  // A rock never stops and never leaves the screen. As in the game it is one continuous flight: lifted out of
+  // Doom's hands, it arcs up and away toward you (shrinking as it climbs), glides on, starts to come down,
+  // and in the dip, the tick before the burst, it plunges and grows. With two rocks up they fly side by side.
+  const ROCK_HEAD = [BOSS_C[0], BOSS_C[1] - 0.3];
+  // monotone cubic through keyframes: smooth, never overshoots, and only levels off at a peak
+  function pchip(xs, ys) {
+    const n = xs.length, d = [], m = [];
+    for (let i = 0; i < n - 1; i++) d.push((ys[i + 1] - ys[i]) / (xs[i + 1] - xs[i]));
+    m[0] = d[0]; m[n - 1] = d[n - 2];
+    for (let i = 1; i < n - 1; i++) {
+      const h0 = xs[i] - xs[i - 1], h1 = xs[i + 1] - xs[i], w1 = 2 * h1 + h0, w2 = h1 + 2 * h0;
+      m[i] = d[i - 1] * d[i] <= 0 ? 0 : (w1 + w2) / (w1 / d[i - 1] + w2 / d[i]);
+    }
+    return x => {
+      let i = 0;
+      while (i < n - 2 && x > xs[i + 1]) i++;
+      const h = xs[i + 1] - xs[i], u = clamp((x - xs[i]) / h, 0, 1), u2 = u * u, u3 = u2 * u;
+      return (2 * u3 - 3 * u2 + 1) * ys[i] + (u3 - 2 * u2 + u) * h * m[i] + (3 * u2 - 2 * u3) * ys[i + 1] + (u3 - u2) * h * m[i + 1];
+    };
+  }
+  // Keyed by ticks since the throw: s is how far it has come from Doom toward you, h the height it is drawn
+  // above that spot (tiles), sc its size. The dip is the last tick.
+  const ROCK_T = [0, 1, 2.2, 3.5, 4.8, ROCK_FLIGHT - 1, ROCK_FLIGHT];
+  // The high arc, when the view has room above Doom: the first tick is mostly straight up, and after that h
+  // falls only about a tile over the whole crossing, so moving toward you always wins on screen.
+  const ROCK_HIGH = {
+    s: pchip(ROCK_T, [0, 0.05, 0.3, 0.55, 0.78, 0.975, 1]),
+    h: pchip(ROCK_T, [2, 3.6, 4.05, 3.78, 3.52, 3.3, 2.2]),
+    sc: pchip(ROCK_T, [0.8, 0.95, 0.8, 0.7, 0.64, 0.64, 1.15]),
+  };
+  // South of Doom the view ends just above its head, so the arc is flatter: a short rise, then it sweeps
+  // down toward you instead of pressing against the top edge.
+  const ROCK_LOW = {
+    s: pchip(ROCK_T, [0, 0.04, 0.3, 0.57, 0.8, 0.975, 1]),
+    h: pchip(ROCK_T, [2, 2.45, 2.55, 2.6, 2.62, 2.65, 2.2]),
+    sc: pchip(ROCK_T, [0.8, 0.86, 0.76, 0.67, 0.62, 0.64, 1.15]),
+  };
+  function rockState(k, ct, pp, dt) {
+    const age = ct - k.thrown, t = clamp(age, 0, ROCK_FLIGHT);
+    const dip = age >= ROCK_FLIGHT - 1;
+    const want = !dip && G.rocks.length > 1 ? (k.id === 1 ? -0.8 : 0.8) : 0;
+    k.ox = k.ox === undefined ? want : k.ox + (want - k.ox) * (1 - Math.exp(-dt / 220));
+    // how much of the high arc fits above Doom's head in the view right now (it eases with the camera)
+    const room = clamp(((sy(ROCK_HEAD[1]) - V.ry0) / V.TS - 3.2) / 1.4, 0, 1), q = room * room * (3 - 2 * room);
+    const at = ch => lerp(ROCK_LOW[ch](t), ROCK_HIGH[ch](t), q);
+    const s = at('s'), u = dip ? clamp(age - (ROCK_FLIGHT - 1), 0, 1) : 0;
+    return {
+      x: lerp(ROCK_HEAD[0], pp[0] + 0.5 + k.ox, s), y: lerp(ROCK_HEAD[1], pp[1] + 0.5, s),
+      h: at('h'), sc: at('sc'), rot: age * 0.9,
+      shadow: 0.18 * Math.min(1, s * 3) + 0.4 * u, dip: dip ? u : undefined,
+    };
+  }
+  // screen position of a rock, kept inside the open view
+  function rockScreen(st) {
+    const d = ROCK_D * st.sc * V.TS, r = d / 2;
+    return { X: clamp(sx(st.x), V.rx0 + r, V.rx1 - r), Y: clamp(sy(st.y) - st.h * V.TS, V.ry0 + r, V.ry1 - r), d };
+  }
+  function playerPos(f) {
+    const tr = G.player.trail;
+    if (tr.length < 2) return tr[tr.length - 1] || [G.player.x, G.player.y];
+    const segs = tr.length - 1, u = f * segs, i = Math.min(segs - 1, Math.floor(u)), w = u - i;
+    return [lerp(tr[i][0], tr[i + 1][0], w), lerp(tr[i][1], tr[i + 1][1], w)];
+  }
+  function drawSprite(img, x, y, w, h, rot, alpha) {
+    ctx.save();
+    ctx.globalAlpha = alpha === undefined ? 1 : alpha;
+    ctx.translate(x, y);
+    if (rot) ctx.rotate(rot);
+    ctx.drawImage(img, -w / 2, -h / 2, w, h);
+    ctx.restore();
+  }
+  function shadowBlob(x, y, rx, ry, a) {
+    const gr = ctx.createRadialGradient(x, y, 0, x, y, rx);
+    gr.addColorStop(0, `rgba(0,0,0,${a})`); gr.addColorStop(0.65, `rgba(0,0,0,${a * 0.75})`); gr.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = gr;
+    ctx.beginPath(); ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2); ctx.fill();
+  }
+  const GLOW = { mage: [120, 196, 255], range: [130, 245, 80] };
+  function haloAt(x, y, r, c) {
+    const gr = ctx.createRadialGradient(x, y, 0, x, y, r);
+    gr.addColorStop(0, rgba(c, 0.6)); gr.addColorStop(1, rgba(c, 0));
+    ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+  }
+  // Magic: a pale blue crystal, point first
+  function magicShard(x, y, r, ang) {
+    haloAt(x, y, r * 1.6, GLOW.mage);
+    ctx.save(); ctx.translate(x, y); ctx.rotate(ang);
+    const tip = r * 1.3, tail = -r, w = r * 0.52;
+    ctx.beginPath(); ctx.moveTo(tip, 0); ctx.lineTo(r * 0.1, -w); ctx.lineTo(tail, 0); ctx.closePath();
+    ctx.fillStyle = '#dcf3ff'; ctx.fill();
+    ctx.beginPath(); ctx.moveTo(tip, 0); ctx.lineTo(r * 0.1, w); ctx.lineTo(tail, 0); ctx.closePath();
+    ctx.fillStyle = '#4c9ff0'; ctx.fill();
+    ctx.beginPath(); ctx.moveTo(tip, 0); ctx.lineTo(r * 0.1, -w); ctx.lineTo(tail, 0); ctx.lineTo(r * 0.1, w); ctx.closePath();
+    ctx.strokeStyle = '#0b2550'; ctx.lineWidth = Math.max(1.5, r * 0.1); ctx.stroke();
+    ctx.restore();
+  }
+  // Ranged: a spiky green star
+  function rangeStar(x, y, r, rot) {
+    haloAt(x, y, r * 1.6, GLOW.range);
+    ctx.save(); ctx.translate(x, y); ctx.rotate(rot);
+    ctx.beginPath();
+    for (let i = 0; i < 14; i++) { const a = i * Math.PI / 7, rr = i % 2 ? r * 0.42 : r; ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr); }
+    ctx.closePath();
+    const gr = ctx.createRadialGradient(0, 0, 0, 0, 0, r);
+    gr.addColorStop(0, '#f4ffe4'); gr.addColorStop(0.4, '#a2ff62'); gr.addColorStop(1, '#3faa1c');
+    ctx.fillStyle = gr; ctx.fill();
+    ctx.strokeStyle = '#123d06'; ctx.lineWidth = Math.max(1.5, r * 0.1); ctx.stroke();
+    ctx.restore();
+  }
+  // where a projectile is at fraction v of its flight; it homes in on your chest
+  function projPath(p, pp) {
+    const tx = pp[0] + 0.5, ty = pp[1] + 0.5;
+    return v => [sx(lerp(p.from[0], tx, v)), sy(lerp(p.from[1], ty, v)) - (lerp(p.fh || 1.5, 1, v) + Math.sin(Math.PI * v) * 0.45) * V.TS];
+  }
+  function hash(n) { const s = Math.sin(n) * 43758.5453; return s - Math.floor(s); }
+
+  let lastFrame = 0;
+  function render(now) {
+    const dt = lastFrame ? Math.min(100, now - lastFrame) : 16;
+    lastFrame = now;
+    let f;
+    if (G.running) f = clamp((now - G.lastTickAt) / TICK_MS, 0, 1);
+    else if (G.stepAnimAt) f = clamp((now - G.stepAnimAt) / 260, 0, 1);
+    else f = G.frozenF;
+    const ct = G.tick + f;
+    const P = G.player;
+    const pp = playerPos(f);
+    updateCam(pp, dt);
+    const rocks = G.rocks.map(k => ({ k, st: rockState(k, ct, pp, dt) }));
+    const TS = V.TS, ui = V.ui;
+
+    ctx.setTransform(V.dpr, 0, 0, V.dpr, 0, 0);
+    ctx.imageSmoothingEnabled = true;
+    ctx.fillStyle = '#0c0806';
+    ctx.fillRect(0, 0, V.cw, V.ch);
+
+    // floor
+    if (FLOOR.canvas) {
+      const M = FLOOR.M;
+      ctx.drawImage(FLOOR.canvas, sx(-M), sy(-M), (W + 2 * M) * TS, (H + 2 * M) * TS);
+    }
+    const x0 = Math.max(0, Math.floor(cam.x - V.ax / TS) - 1), x1 = Math.min(W, Math.ceil(cam.x + (V.cw - V.ax) / TS) + 1);
+    const y0 = Math.max(0, Math.floor(cam.y - V.ay / TS) - 1), y1 = Math.min(H, Math.ceil(cam.y + (V.ch - V.ay) / TS) + 1);
+    if (S.grid) {
+      ctx.strokeStyle = 'rgba(0,0,0,0.22)'; ctx.lineWidth = 1; ctx.beginPath();
+      for (let x = x0; x <= x1; x++) { const q = Math.round(sx(x)) + 0.5; ctx.moveTo(q, sy(y0)); ctx.lineTo(q, sy(y1)); }
+      for (let y = y0; y <= y1; y++) { const q = Math.round(sy(y)) + 0.5; ctx.moveTo(sx(x0), q); ctx.lineTo(sx(x1), q); }
+      ctx.stroke();
+    }
+
+    // landed debris: dust and pebbles that linger until the next landing
+    for (const d of G.dust) {
+      const a = clamp(d.until - ct, 0, 1);
+      if (a <= 0) continue;
+      const cx = sx(d.x + 0.5), cy = sy(d.y + 0.55);
+      ctx.fillStyle = `rgba(150,112,72,${0.32 * a})`;
+      ctx.beginPath(); ctx.ellipse(cx, cy, TS * 0.42, TS * 0.3, 0, 0, Math.PI * 2); ctx.fill();
+      for (let i = 0; i < 4; i++) {
+        ctx.fillStyle = i % 2 ? `rgba(214,148,56,${0.9 * a})` : `rgba(88,98,42,${0.9 * a})`;
+        const px = cx + (hash(d.seed + i) - 0.5) * TS * 0.6, py = cy + (hash(d.seed + i * 3.1) - 0.5) * TS * 0.4;
+        ctx.beginPath(); ctx.moveTo(px, py - TS * 0.07); ctx.lineTo(px + TS * 0.08, py + TS * 0.05); ctx.lineTo(px - TS * 0.07, py + TS * 0.05); ctx.closePath(); ctx.fill();
+      }
+    }
+
+    // 9x9 field outline
+    if (S.field) {
+      ctx.setLineDash([6, 4]); ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(255,255,0,0.75)';
+      for (const sh of G.shadows) ctx.strokeRect(sx(sh.cx - FIELD) + 1, sy(sh.cy - FIELD) + 1, (FIELD * 2 + 1) * TS - 2, (FIELD * 2 + 1) * TS - 2);
+      ctx.setLineDash([]);
+    }
+
+    // looming shadows: they darken and widen as the debris comes down
+    for (const sh of G.shadows) {
+      const u = clamp((ct - sh.born) / (sh.land - sh.born), 0, 1);
+      sh.tiles.forEach(k => {
+        const [x, y] = unkey(k);
+        shadowBlob(sx(x + 0.5), sy(y + 0.55), TS * (0.2 + 0.24 * u), TS * (0.14 + 0.17 * u), 0.3 + 0.45 * u);
+      });
+    }
+    for (const b of G.pendingBoulders) {
+      const u = clamp((ct - b.born) / (b.land - b.born), 0, 1);
+      shadowBlob(sx(b.x + 0.5), sy(b.y + 0.58), TS * (0.28 + 0.24 * u), TS * (0.2 + 0.16 * u), 0.4 + 0.45 * u);
+    }
+    // the rocks' own shadows, darkening as they come down
+    for (const { st } of rocks) {
+      if (st.shadow <= 0) continue;
+      const s = 0.55 + 0.5 * (1.4 - Math.min(1.4, st.h - 2.2));
+      shadowBlob(sx(st.x), sy(st.y + 0.1), TS * 0.36 * s, TS * 0.24 * s, st.shadow);
+    }
+
+    // tile markers
+    if (S.hover && G.mouse && G.started && !inPanel(G.mouse[0], G.mouse[1])) {
+      const [hx, hy] = worldTile(G.mouse[0], G.mouse[1]);
+      if (inBounds(hx, hy)) { ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 1; ctx.strokeRect(Math.round(sx(hx)) + 1.5, Math.round(sy(hy)) + 1.5, TS - 3, TS - 3); }
+    }
+    if (P.dest) { ctx.strokeStyle = 'rgba(200,200,200,0.55)'; ctx.lineWidth = 1; ctx.strokeRect(Math.round(sx(P.dest.x)) + 2.5, Math.round(sy(P.dest.y)) + 2.5, TS - 5, TS - 5); }
+    if (S.trueTile) { ctx.strokeStyle = '#2bff2b'; ctx.lineWidth = 2; ctx.strokeRect(Math.round(sx(P.x)) + 1, Math.round(sy(P.y)) + 1, TS - 2, TS - 2); }
+
+    // entities, painted back to front
+    const ents = [];
+    for (const b of G.boulders.values()) ents.push({ y: b.y + 0.9, draw: () => {
+      const spr = SPR.boulder[(b.seed || 0) % SPR.boulder.length];
+      drawSprite(spr, sx(b.x + 0.5), sy(b.y + 0.38), TS * 1.3, TS * 1.3);
+    } });
+    ents.push({ y: BOSS.y + BOSS.s, draw: () => drawBoss(now, ct) });
+    ents.push({ y: pp[1] + 0.95, draw: () => drawPlayer(pp) });
+    ents.sort((a, b) => a.y - b.y).forEach(e => e.draw());
+
+    // debris falling from the burst, and the solid boulders
+    for (const sh of G.shadows) {
+      const u = clamp((ct - sh.born) / (sh.land - sh.born), 0, 1);
+      for (const fr of sh.frags) {
+        const v = clamp((u - fr.delay) / (1 - fr.delay), 0, 1);
+        if (v <= 0) continue;
+        const e = 1 - (1 - v) * (1 - v);
+        const at = (vv, ee) => [sx(lerp(sh.cx + 0.5, fr.xy[0] + 0.5, ee)), sy(lerp(sh.cy + 0.5, fr.xy[1] + 0.5, ee)) - (1 - vv) * (2.2 + 1.8 * vv) * TS];
+        const [X, Y] = at(v, e);
+        if (v < 0.97) {
+          // a short streak behind each falling slab shows where it is heading
+          const vb = Math.max(0, v - 0.14), [Xb, Yb] = at(vb, 1 - (1 - vb) * (1 - vb));
+          const gr = ctx.createLinearGradient(Xb, Yb, X, Y);
+          gr.addColorStop(0, 'rgba(255,196,110,0)'); gr.addColorStop(1, 'rgba(255,196,110,0.5)');
+          ctx.strokeStyle = gr; ctx.lineWidth = TS * 0.16; ctx.lineCap = 'round';
+          ctx.beginPath(); ctx.moveTo(Xb, Yb); ctx.lineTo(X, Y); ctx.stroke(); ctx.lineCap = 'butt';
+        }
+        const h = (1 - v) * (2.2 + 1.8 * v);
+        const spr = SPR.frag[fr.spr], fs = TS * (0.8 + 0.09 * h);
+        drawSprite(spr, X, Y, fs, fs, fr.spin * v);
+      }
+    }
+    for (const b of G.pendingBoulders) {
+      const u = clamp((ct - b.born) / (b.land - b.born), 0, 1);
+      const h = 2.2 * (1 - u * u);
+      drawSprite(SPR.boulder[(b.seed || 0) % SPR.boulder.length], sx(b.x + 0.5), sy(b.y + 0.38) - h * TS, TS * 1.3, TS * 1.3, (1 - u) * 0.6);
+    }
+
+    // rocks in the air, always on screen
+    for (const { k, st } of rocks) {
+      const { X, Y, d } = rockScreen(st);
+      drawSprite(k.color === 'mage' ? SPR.magic : SPR.range, X, Y, d, d, st.rot);
+      if (st.dip !== undefined && st.dip < 0.5) {
+        // a flash as the dip starts: this is the moment to click your exit
+        const v = st.dip / 0.5;
+        ctx.strokeStyle = `rgba(255,255,255,${0.9 * (1 - v)})`; ctx.lineWidth = Math.max(2, TS * 0.08 * (1 - v));
+        ctx.beginPath(); ctx.arc(X, Y, d * (0.55 + 0.6 * v), 0, Math.PI * 2); ctx.stroke();
+      }
+    }
+
+    // projectiles: bright, with a trail behind and a dashed line to you
+    for (const p of G.projs) {
+      if (ct < p.spawn || !p.from) continue;
+      const u = clamp((ct - p.spawn) / (p.hit - p.spawn), 0, 1);
+      const at = projPath(p, pp);
+      const [X, Y] = at(u);
+      const glow = GLOW[p.style];
+      if (S.paths) {
+        // the path still to fly: a dark line with bright dashes marching toward you
+        ctx.save();
+        ctx.beginPath();
+        for (let i = 0; i <= 12; i++) { const [a, b] = at(lerp(u, 1, i / 12)); if (i) ctx.lineTo(a, b); else ctx.moveTo(a, b); }
+        ctx.lineWidth = Math.max(3, TS * 0.1); ctx.strokeStyle = 'rgba(0,0,0,0.4)'; ctx.stroke();
+        ctx.setLineDash([TS * 0.18, TS * 0.12]);
+        ctx.lineDashOffset = -now / 25;
+        ctx.lineWidth = Math.max(1.5, TS * 0.055); ctx.strokeStyle = rgba(glow, 0.9); ctx.stroke();
+        ctx.restore();
+        const tl = Math.min(u, 0.32);
+        ctx.lineCap = 'round';
+        for (let i = 0; i < 8; i++) {
+          const [a0, b0] = at(u - tl * (i + 1) / 8), [a1, b1] = at(u - tl * i / 8);
+          ctx.strokeStyle = rgba(glow, 0.6 * (1 - i / 8));
+          ctx.lineWidth = TS * 0.3 * (1 - i / 9);
+          ctx.beginPath(); ctx.moveTo(a0, b0); ctx.lineTo(a1, b1); ctx.stroke();
+        }
+        ctx.lineCap = 'butt';
+      }
+      const [Xn, Yn] = at(Math.min(1, u + 0.03));
+      if (p.style === 'mage') magicShard(X, Y, TS * 0.4, Xn === X && Yn === Y ? Math.PI / 2 : Math.atan2(Yn - Y, Xn - X));
+      else rangeStar(X, Y, TS * 0.42, now / 160);
+    }
+
+    // effects
+    G.fx = G.fx.filter(e => now - e.t0 < e.dur);
+    for (const e of G.fx) {
+      const u = clamp((now - e.t0) / e.dur, 0, 1);
+      if (now < e.t0) continue;
+      if (e.kind === 'burst') {
+        const X = sx(e.x), Y = sy(e.y) - e.h * TS;
+        ctx.globalAlpha = 1 - u;
+        const gr = ctx.createRadialGradient(X, Y, 0, X, Y, TS * (0.4 + u * 1.6));
+        gr.addColorStop(0, e.color === 'mage' ? 'rgba(220,240,255,0.95)' : 'rgba(240,230,170,0.95)');
+        gr.addColorStop(0.5, e.color === 'mage' ? 'rgba(90,170,255,0.6)' : 'rgba(120,200,80,0.55)');
+        gr.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(X, Y, TS * (0.4 + u * 1.6), 0, Math.PI * 2); ctx.fill();
+        for (let i = 0; i < 10; i++) {
+          const a = hash(e.seed + i) * Math.PI * 2, d = TS * (0.3 + u * (1.2 + hash(e.seed + i * 5) * 1.3));
+          drawSprite(SPR.frag[i % FRAG_N], X + Math.cos(a) * d, Y + Math.sin(a) * d * 0.7 + u * u * TS * 0.8, TS * 0.42, TS * 0.42, a + u * 5, 1 - u);
+        }
+        ctx.globalAlpha = 1;
+      } else if (e.kind === 'impact') {
+        // a projectile reaching you: a ring and sparks in its colour
+        const [X, Y] = [sx(pp[0] + 0.5), sy(pp[1] + 0.5) - TS];
+        const c = GLOW[e.style];
+        ctx.strokeStyle = rgba(c, 1 - u); ctx.lineWidth = Math.max(1.5, TS * 0.09 * (1 - u));
+        ctx.beginPath(); ctx.arc(X, Y, TS * (0.2 + 0.5 * u), 0, Math.PI * 2); ctx.stroke();
+        ctx.fillStyle = rgba(c, 1 - u);
+        for (let i = 0; i < 8; i++) {
+          const a = hash(e.seed + i) * Math.PI * 2, d = TS * (0.15 + 0.65 * u);
+          ctx.fillRect(X + Math.cos(a) * d - TS * 0.04, Y + Math.sin(a) * d - TS * 0.04, TS * 0.08, TS * 0.08);
+        }
+      } else if (e.kind === 'puff') {
+        const X = sx(e.x), Y = sy(e.y + 0.05);
+        const s = e.big ? 1.4 : 1;
+        for (let i = 0; i < 5; i++) {
+          const a = hash(e.seed + i) * Math.PI * 2, d = TS * 0.18 * u * s;
+          ctx.fillStyle = `rgba(110,78,48,${0.55 * (1 - u)})`;
+          ctx.beginPath(); ctx.arc(X + Math.cos(a) * d, Y + Math.sin(a) * d * 0.6 - u * TS * 0.15, TS * (0.14 + 0.2 * u) * s, 0, Math.PI * 2); ctx.fill();
+        }
+        for (let i = 0; i < 6; i++) {
+          const a = hash(e.seed + i * 9) * Math.PI * 2, d = TS * (0.1 + 0.45 * u) * s;
+          ctx.fillStyle = `rgba(255,190,70,${1 - u})`;
+          ctx.fillRect(X + Math.cos(a) * d - 1, Y + Math.sin(a) * d * 0.6 - u * TS * 0.3 - 1, 2.5, 2.5);
+        }
+      }
+    }
+
+    // overhead, health bar and hitsplats
+    drawOverheads(pp, now);
+
+    // OSRS yellow click cross
+    if (G.clickMark) {
+      const age = (now - G.clickMark.t0) / 400;
+      if (age >= 0 && age < 1) {
+        const r = (10 - age * 6) * ui, X = G.clickMark.x, Y = G.clickMark.y;
+        ctx.lineCap = 'round';
+        for (const pass of [0, 1]) {
+          ctx.strokeStyle = pass ? '#ffff00' : '#000'; ctx.lineWidth = pass ? 2 * ui : 4 * ui;
+          ctx.beginPath();
+          ctx.moveTo(X - r, Y - r); ctx.lineTo(X - r * 0.35, Y - r * 0.35); ctx.moveTo(X + r, Y - r); ctx.lineTo(X + r * 0.35, Y - r * 0.35);
+          ctx.moveTo(X - r, Y + r); ctx.lineTo(X - r * 0.35, Y + r * 0.35); ctx.moveTo(X + r, Y + r); ctx.lineTo(X + r * 0.35, Y + r * 0.35);
+          ctx.stroke();
+        }
+        ctx.lineCap = 'butt';
+      }
+    }
+
+    drawChat(pp, dt);
+    drawMouseText();
+    drawMetronome(f);
+    drawRunOrb();
+    drawPanel(now);
+  }
+
+  function drawBoss(now, ct) {
+    const im = IMG.doom;
+    const sinceThrow = ct - G.bossThrowAt;
+    const lift = sinceThrow >= 0 && sinceThrow < 1.2 ? Math.sin(Math.PI * sinceThrow / 1.2) * 0.35 : 0;
+    const bob = Math.sin(now / 650) * 0.05;
+    const w = V.TS * 6.6, h = ready(im) ? w * im.naturalHeight / im.naturalWidth : w * 0.7;
+    const X = sx(BOSS_C[0]), Yb = sy(BOSS.y + BOSS.s + 0.25) - (lift + bob) * V.TS;
+    shadowBlob(X, sy(BOSS.y + BOSS.s - 0.4), V.TS * 3.2, V.TS * 1.1, 0.45);
+    if (ready(im)) ctx.drawImage(im, X - w / 2, Yb - h, w, h * (1 + lift * 0.03));
+    else { ctx.fillStyle = '#7a1f1f'; ctx.fillRect(sx(BOSS.x), sy(BOSS.y), BOSS.s * V.TS, BOSS.s * V.TS); }
+  }
+  function drawPlayer(pp) {
+    const im = IMG.player, meta = A.meta.player;
+    const TS = V.TS;
+    const h = TS * 2.1, w = h * meta[0] / meta[1];
+    const fx = sx(pp[0] + 0.5), fy = sy(pp[1] + 0.9);
+    shadowBlob(fx, fy - TS * 0.05, TS * 0.42, TS * 0.16, 0.5);
+    const faceRight = G.player.face !== 0 ? G.player.face > 0 : true;
+    ctx.save();
+    ctx.translate(fx, fy);
+    if (!faceRight) ctx.scale(-1, 1);
+    // dead: keel over backwards, flat on the floor
+    if (G.dead) ctx.rotate(-Math.PI / 2 * clamp((performance.now() - G.deadAt) / 380, 0, 1));
+    if (G.player.stun > 0) ctx.globalAlpha = 0.85;
+    if (ready(im)) ctx.drawImage(im, -w * meta[2], -h, w, h);
+    else { ctx.fillStyle = '#e6dcc6'; ctx.fillRect(-TS * 0.25, -h * 0.8, TS * 0.5, h * 0.8); }
+    ctx.restore();
+  }
+  function drawOverheads(pp, now) {
+    const P = G.player, ui = V.ui, TS = V.TS;
+    const X = sx(pp[0] + 0.5), headY = sy(pp[1] + 0.9) - TS * 2.1;
+    ctx.imageSmoothingEnabled = false;
+    // health bar
+    const bw = 30 * ui, bh = 5 * ui, by = headY - 6 * ui;
+    if (!G.dead) {
+      ctx.fillStyle = '#ff0000'; ctx.fillRect(Math.round(X - bw / 2), Math.round(by), Math.round(bw), Math.round(bh));
+      ctx.fillStyle = '#00ff00'; ctx.fillRect(Math.round(X - bw / 2), Math.round(by), Math.round(bw * clamp(P.hp / 99, 0, 1)), Math.round(bh));
+    }
+    // protection prayer overhead
+    if (P.prayer && !G.dead && ready(IMG[OVERHEAD[P.prayer]])) {
+      const s = 25 * ui;
+      ctx.drawImage(IMG[OVERHEAD[P.prayer]], Math.round(X - s / 2), Math.round(by - s - 3 * ui), Math.round(s), Math.round(s));
+    }
+    // hitsplats
+    G.splats = G.splats.filter(s => now - s.t0 < 1200);
+    const OFF = [[0, 0], [0, -20], [-14, 10], [14, 10]];
+    const cy = sy(pp[1] + 0.9) - TS * 1.05;
+    for (const s of G.splats) {
+      const im = IMG[s.d ? 'Damage hitsplat' : 'Zero damage hitsplat'];
+      const w = 24 * ui * 1.15, h = 23 * ui * 1.15;
+      const x = X + OFF[s.slot][0] * ui, y = cy + OFF[s.slot][1] * ui;
+      if (ready(im)) ctx.drawImage(im, Math.round(x - w / 2), Math.round(y - h / 2), Math.round(w), Math.round(h));
+      bitText(ctx, String(s.d), Math.round(x), Math.round(y + ui), pxs(1.1), '#ffffff', 'center');
+    }
+    ctx.imageSmoothingEnabled = true;
+  }
+  // chat fades back while Doom or you are behind it
+  let chatAlpha = 1;
+  function drawChat(pp, dt) {
+    if (!S.chat || !G.chat.length) return;
+    const ui = V.ui, fs = Math.round(13 * ui), lh = Math.round(16 * ui);
+    const x = 8 * ui, maxW = Math.min(V.px - 16 * ui, 520 * ui);
+    const y0 = V.ch - 8 * ui - lh * G.chat.length;
+    const TS = V.TS, dw = TS * 6.6 * 0.76, dh = TS * 6.6 * 0.709;
+    const doomR = [sx(BOSS_C[0]) - dw / 2, sy(BOSS.y + BOSS.s + 0.25) - dh, sx(BOSS_C[0]) + dw / 2, sy(BOSS.y + BOSS.s)];
+    const youR = [sx(pp[0] + 0.1), sy(pp[1] + 0.9) - TS * 2.1, sx(pp[0] + 0.9), sy(pp[1] + 0.9)];
+    const chatR = [0, y0 - 4 * ui, x + maxW, V.ch];
+    const hits = r => r[0] < chatR[2] && r[2] > chatR[0] && r[1] < chatR[3] && r[3] > chatR[1];
+    chatAlpha += ((hits(doomR) || hits(youR) ? 0.35 : 1) - chatAlpha) * (1 - Math.exp(-dt / 160));
+    ctx.save();
+    ctx.globalAlpha = chatAlpha;
+    const gr = ctx.createLinearGradient(0, y0 - 8 * ui, 0, V.ch);
+    gr.addColorStop(0, 'rgba(0,0,0,0)'); gr.addColorStop(1, 'rgba(0,0,0,0.45)');
+    ctx.fillStyle = gr; ctx.fillRect(0, y0 - 8 * ui, maxW + 16 * ui, V.ch - y0 + 8 * ui);
+    ctx.font = `600 ${fs}px Barlow, Arial, sans-serif`;
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    G.chat.forEach((m, i) => {
+      const y = y0 + i * lh;
+      const stamp = m.stamp + ': ';
+      ctx.fillStyle = '#000'; ctx.fillText(stamp, x + 1, y + 1);
+      ctx.fillStyle = '#ff981f'; ctx.fillText(stamp, x, y);
+      const sw = ctx.measureText(stamp).width;
+      ctx.fillStyle = '#000'; ctx.fillText(m.msg, x + sw + 1, y + 1, maxW - sw);
+      ctx.fillStyle = m.color; ctx.fillText(m.msg, x + sw, y, maxW - sw);
+    });
+    ctx.restore();
+  }
+  function drawMouseText() {
+    if (!G.mouse || (!G.started && !G.editing)) return;
+    const [mx, my] = G.mouse;
+    let parts;
+    if (inPanel(mx, my) || G.drag) {
+      const slot = slotAt(mx, my);
+      const st = G.drag ? G.drag.style : slot >= 0 ? prayerAt(slot) : null;
+      if (!st) return;
+      if (G.editing) parts = [['Move ', '#ffffff'], [PRAY_NAME[st], '#ff9040']];
+      else parts = [[G.player.prayer === st ? 'Deactivate ' : 'Activate ', '#ffffff'], [PRAY_NAME[st], '#ff9040']];
+    } else if (inOrb(mx, my)) parts = [['Toggle Run', '#ffffff']];
+    else if (G.editing) return;
+    else parts = [['Walk here', '#ffffff']];
+    const ui = V.ui;
+    ctx.font = `700 ${Math.round(13 * ui)}px Barlow, Arial, sans-serif`;
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    let x = 6 * ui;
+    for (const [t, c] of parts) {
+      ctx.fillStyle = '#000'; ctx.fillText(t, x + 1, 5 * ui + 1);
+      ctx.fillStyle = c; ctx.fillText(t, x, 5 * ui);
+      x += ctx.measureText(t).width;
+    }
+  }
+  function drawMetronome(f) {
+    const ui = V.ui, s = Math.round(24 * ui);
+    const x = Math.round(V.px + 4 * ui), y = Math.round(V.py - s - 8 * ui);
+    const COLS = ['#1f7a1f', '#2e6fc2', '#8a2b8a', '#151515'];
+    ctx.fillStyle = '#000'; ctx.fillRect(x - 1, y - 1, s + 2, s + 2);
+    ctx.fillStyle = COLS[G.tick % 4]; ctx.fillRect(x, y, s, s);
+    const label = G.rep ? String(G.tick - G.rep.start) : String((G.tick % 4) + 1);
+    bitText(ctx, label, x + s / 2, y + s / 2 + ui, pxs(1.2), '#ffffff', 'center');
+    if (G.rep) {
+      ctx.font = `700 ${Math.round(12 * ui)}px Barlow, Arial, sans-serif`;
+      ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#000'; ctx.fillText('T+', x - 4 * ui + 1, y + s / 2 + 1);
+      ctx.fillStyle = '#ffff00'; ctx.fillText('T+', x - 4 * ui, y + s / 2);
+    }
+    void f;
+  }
+  function drawPanel(now) {
+    const ui = V.ui;
+    if (!PANEL || PANEL.ui !== ui || PANEL.dpr !== V.dpr) buildPanel(ui, V.dpr);
+    ctx.drawImage(PANEL.canvas, V.px, V.py, V.pw, V.ph);
+    const P = G.player;
+    const slotXY = i => { const [cx, cy] = cellCentre(i); return [V.px + cx * ui, V.py + cy * ui]; };
+    const icon = (st, X, Y, alpha) => {
+      const im = IMG[PRAY_NAME[st]];
+      if (!ready(im)) return;
+      const w = im.naturalWidth * ui, h = im.naturalHeight * ui;
+      ctx.globalAlpha = alpha;
+      ctx.drawImage(im, Math.round(X - w / 2), Math.round(Y - h / 2), Math.round(w), Math.round(h));
+      ctx.globalAlpha = 1;
+    };
+    ctx.imageSmoothingEnabled = false;
+    if (G.editing) {
+      // every slot is a place a prayer can go
+      const hover = G.mouse && inPanel(G.mouse[0], G.mouse[1]) ? slotAt(G.mouse[0], G.mouse[1]) : -1;
+      for (let i = 0; i < 30; i++) {
+        const [X, Y] = slotXY(i);
+        ctx.strokeStyle = i === hover && (G.drag || G.editSel) ? 'rgba(255,255,0,0.8)' : 'rgba(255,255,255,0.16)'; ctx.lineWidth = 1;
+        ctx.strokeRect(Math.round(X - 16 * ui) + 0.5, Math.round(Y - 16 * ui) + 0.5, Math.round(32 * ui), Math.round(32 * ui));
+      }
+    }
+    for (const [st] of PROTECTS) {
+      const [X, Y] = slotXY(S.pray[st]);
+      if (P.prayer === st) {
+        const gr = ctx.createRadialGradient(X, Y, 0, X, Y, 16 * ui);
+        gr.addColorStop(0, 'rgba(206,182,116,0.95)'); gr.addColorStop(0.82, 'rgba(196,172,110,0.95)'); gr.addColorStop(1, 'rgba(150,132,86,0.0)');
+        ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(X, Y, 16.5 * ui, 0, Math.PI * 2); ctx.fill();
+      }
+      icon(st, X, Y, G.drag && G.drag.moved && G.drag.style === st ? 0.3 : 1);
+      if (S.queued && G.inputs.some(q => q.type === 'pray' && q.style === st)) {
+        ctx.setLineDash([3 * ui, 2 * ui]); ctx.strokeStyle = '#ffff00'; ctx.lineWidth = 1;
+        ctx.strokeRect(X - 17 * ui, Y - 17 * ui, 34 * ui, 34 * ui); ctx.setLineDash([]);
+      }
+      if (G.editing && G.editSel === st) { ctx.strokeStyle = '#ffff00'; ctx.lineWidth = 2; ctx.strokeRect(X - 17.5 * ui, Y - 17.5 * ui, 35 * ui, 35 * ui); }
+    }
+    if (G.drag && G.drag.moved) icon(G.drag.style, G.drag.x, G.drag.y, 0.9);
+    // prayer points
+    bitText(ctx, '99 / 99', V.px + (FR.side + 64) * ui, V.py + (FR.top + 254) * ui, pxs(1.3), '#ff981f', 'left');
+    // status bars over the pillars, like the RuneLite plugin
+    const top = V.py + (FR.top + 14) * ui, bh = (PB.h - 20) * ui, bw = 9 * ui;
+    const bars = [[V.px + 3 * ui, P.hp / 99, '#c71b0e', '#3d0703', P.hp], [V.px + V.pw - 12 * ui, 1, '#1f9fb8', '#06272e', 99]];
+    for (const [x, frac, fg, bg, val] of bars) {
+      ctx.fillStyle = '#000'; ctx.fillRect(x - 1, top - 1, bw + 2, bh + 2);
+      ctx.fillStyle = bg; ctx.fillRect(x, top, bw, bh);
+      ctx.fillStyle = fg; ctx.fillRect(x, top + bh * (1 - clamp(frac, 0, 1)), bw, bh * clamp(frac, 0, 1));
+      bitText(ctx, String(Math.max(0, val)), x + bw / 2, top - 7 * ui, pxs(0.85), '#ffffff', 'center');
+    }
+    ctx.imageSmoothingEnabled = true;
+    void now;
+  }
+
+  // the run orb above the side panel, as on the minimap, with its energy plate on the left
+  function orbGeom() { const ui = V.ui, r = 17 * ui; return { x: V.cw - 10 * ui - r, y: V.py - 12 * ui - r, r }; }
+  function inOrb(mx, my) { const o = orbGeom(); return Math.hypot(mx - o.x, my - o.y) <= o.r; }
+  function drawRunOrb() {
+    const ui = V.ui, o = orbGeom();
+    const w = Math.round(30 * ui), h = Math.round(17 * ui), x = Math.round(o.x - o.r - w + 5 * ui), y = Math.round(o.y - h / 2);
+    ctx.fillStyle = '#000'; ctx.fillRect(x - 1, y - 1, w + 2, h + 2);
+    ctx.fillStyle = '#3b3428'; ctx.fillRect(x, y, w, h);
+    ctx.fillStyle = '#5a5142'; ctx.fillRect(x, y, w, Math.max(1, Math.round(ui)));
+    bitText(ctx, '100', x + (w - 5 * ui) / 2, o.y + ui, pxs(0.9), '#00ff00', 'center');
+    const im = IMG[G.player.run ? 'Run orb on' : 'Run orb off'];
+    ctx.imageSmoothingEnabled = false;
+    if (ready(im)) ctx.drawImage(im, Math.round(o.x - o.r), Math.round(o.y - o.r), Math.round(o.r * 2), Math.round(o.r * 2));
+    ctx.imageSmoothingEnabled = true;
+    if (S.queued && G.inputs.some(q => q.type === 'run')) {
+      ctx.setLineDash([3 * ui, 2 * ui]); ctx.strokeStyle = '#ffff00'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(o.x, o.y, o.r + 2 * ui, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+    }
+  }
+
+  /* ================= prayer book helpers ================= */
+  function prayerAt(slot) { for (const [st] of PROTECTS) if (S.pray[st] === slot) return st; return null; }
+  // put a prayer in a slot; a prayer already there swaps into the slot it left
+  function movePrayer(style, slot) {
+    const other = prayerAt(slot);
+    if (other === style) return;
+    if (other) S.pray[other] = S.pray[style];
+    S.pray[style] = slot;
+    save();
+  }
+  const inPanel = (mx, my) => mx >= V.px && my >= V.py;
+  function slotAt(mx, my) {
+    const lx = (mx - V.px) / V.ui - FR.side, ly = (my - V.py) / V.ui - FR.top;
+    const c = Math.floor((lx - 9.5) / 37), r = Math.floor((ly - 14.5) / 37);
+    if (c < 0 || c > 4 || r < 0 || r > 5) return -1;
+    return r * 5 + c;
+  }
+  function worldTile(mx, my) { return [Math.floor((mx - V.ax) / V.TS + cam.x), Math.floor((my - V.ay) / V.TS + cam.y)]; }
+
+  /* ================= tick ruler ================= */
+  const RULER = [
+    { r: 0, ev: 'Throw 1', sub: 'on your spot' }, { r: 1 }, { r: 2 },
+    { r: 3, ev: 'Throw 2' }, { r: 4 }, { r: 5 },
+    { r: 6, ev: 'Dip 1', sub: 'click your exit', key: true },
+    { r: 7, ev: 'Burst 1', sub: 'prayer off' }, { r: 8, sub: 'last step that counts' },
+    { r: 9, ev: 'Land 1', sub: 'dip 2' },
+    { r: 10, ev: 'Burst 2', sub: 'pray now', key: true },
+    { r: 11, hit: 0 }, { r: 12, hit: 1, sub: 'land 2' }, { r: 13, hit: 2 }, { r: 14, hit: 3 }, { r: 15, hit: 4 }, { r: 16, hit: 5 },
+  ];
+  const rulerEl = $('#ruler');
+  const rulerCells = [];
+  function buildRuler() {
+    rulerEl.innerHTML = '';
+    for (const c of RULER) {
+      const d = document.createElement('div');
+      d.className = 'cell' + (c.key ? ' key' : '');
+      const r = document.createElement('span'); r.className = 'r'; r.textContent = 'T+' + c.r; d.append(r);
+      if (c.hit !== undefined) { const ch = document.createElement('span'); ch.className = 'chip'; d.append(ch); c.chip = ch; }
+      if (c.ev) { const e = document.createElement('span'); e.className = 'ev'; e.textContent = c.ev; d.append(e); }
+      if (c.sub) { const s = document.createElement('span'); s.className = 'sub'; s.textContent = c.sub; d.append(s); }
+      rulerEl.append(d);
+      rulerCells.push(d);
+    }
+  }
+  function syncRuler() {
+    const rep = G.rep, r = rep ? G.tick - rep.start : -1;
+    RULER.forEach((c, i) => {
+      rulerCells[i].classList.toggle('now', r === c.r);
+      rulerCells[i].classList.toggle('past', r > c.r);
+      if (c.chip) {
+        const st = rep ? rep.pattern[c.hit] : null;
+        const xy = ['X', 'Y', 'X', 'X', 'Y', 'X'][c.hit];
+        c.chip.textContent = st ? LETTER[st] : xy;
+        c.chip.style.setProperty('--c', st ? `var(${CSSVAR[st]})` : (xy === 'X' ? 'var(--orange)' : 'var(--dim)'));
+      }
+    });
+    $('#ruler-note').textContent = rep
+      ? `${rep.color === 'mage' ? 'Blue rocks: Magic first' : 'Green rocks: Ranged first'}. Each cell is one ${(TICK_MS / 1000).toFixed(1)} s tick.`
+      : `T is the tick Doom throws rock 1. Each cell is one ${(TICK_MS / 1000).toFixed(1)} s tick. X is the rock's colour, Y the other style.`;
+  }
+
+  /* ================= DOM panels ================= */
+  function syncUI() {
+    $('#btn-play').textContent = !G.started ? 'Start' : G.running ? 'Pause' : 'Resume';
+    $('#btn-step').disabled = !G.started || G.running || G.dead;
+    $('#btn-edit').setAttribute('aria-pressed', String(G.editing));
+    $('#btn-edit').textContent = G.editing ? 'Done' : 'Arrange prayers';
+    $('#btn-reset-layout').hidden = !G.editing;
+    $('#paused').hidden = !G.editing && !(G.started && !G.running && !G.dead);
+    $('#paused').textContent = G.editing ? 'Drag a prayer to any slot · Done when finished' : 'Paused · Space to resume · . for the next tick';
+    syncRuler();
+    syncStats();
+  }
+  function syncStats() {
+    $('#st-reps').textContent = ST.reps;
+    $('#st-clean').textContent = ST.clean;
+    $('#st-streak').textContent = ST.streak;
+    $('#st-best').textContent = ST.best;
+    $('#st-acc').textContent = ST.prayTotal ? Math.round(ST.prayOk / ST.prayTotal * 100) + '%' : '–';
+    const per = v => !ST.reps ? '–' : splatHTML(v ? (v / ST.reps).toFixed(1) : 0);
+    let all = 0, times = 0;
+    for (const k of ['debris', 'boulder', 'barrage']) {
+      const v = ST.dmg[k] || 0, n = ST.hitBy[k] || 0;
+      all += v;
+      times += n;
+      $('#st-n-' + k).textContent = n;
+      $('#st-d-' + k).innerHTML = splatHTML(v);
+      $('#st-a-' + k).innerHTML = per(v);
+    }
+    $('#st-n-all').textContent = times;
+    $('#st-d-all').innerHTML = splatHTML(all);
+    $('#st-a-all').innerHTML = per(all);
+  }
+  function exitNote(rep, dip, burstR) {
+    const m = rep.moved;
+    if (m[dip]) return { ok: null, txt: 'already moving at the dip' };
+    if (m[burstR]) return { ok: true, txt: 'left on the burst tick' };
+    if (m[burstR + 1]) return { ok: false, txt: 'left 1 tick late' };
+    return { ok: false, txt: 'stayed put' };
+  }
+  function prayNote(rep) {
+    const first = rep.hits[0];
+    const ok = !!(first && first.ok);
+    const b2 = rep.burstAt[2];
+    const win = TICK_MS - S.latency;
+    if (!rep.stepped && b2 != null) {
+      const c = rep.prayClicks.find(k => k.clicked > b2 - S.latency && k.style === rep.pattern[0]);
+      if (c) {
+        const ms = Math.round(c.clicked - b2);
+        const sgn = ms >= 0 ? '+' + ms : String(ms);
+        return { ok, txt: ok ? `${sgn} ms after burst 2 (${win} ms window)` : `${sgn} ms, too late (${win} ms window)` };
+      }
+    }
+    if (rep.wipedEarly) return { ok, txt: ok ? 'clicked early, re-clicked in time' : 'clicked before burst 2, wiped' };
+    return { ok, txt: ok ? 'on for hit 1' : 'not on for hit 1' };
+  }
+  function renderReport(rep, example) {
+    const el = $('#report');
+    const total = rep.total || 0;
+    const verdict = example ? '<span class="pill ex">Example</span>' : rep.clean ? '<span class="pill ok">Clean</span>'
+      : rep.died ? '<span class="pill bad">Dead</span>' : splatHTML(total);
+    const line = (label, ok, txt) => `<li class="${ok === true ? 'ok' : ok === false ? 'bad' : ''}"><span>${label}</span><b>${txt}</b></li>`;
+    const e1 = exitNote(rep, R.DIP1, R.BURST1), e2 = exitNote(rep, R.DIP2, R.BURST2), pn = prayNote(rep);
+    let h = `<div class="rep-head"><span class="rep-n">${example ? 'What you will see' : 'Rep ' + rep.n}</span>${verdict}</div>`;
+    h += '<ul class="rep-list">';
+    h += line('Rock 1 exit', e1.ok, e1.txt);
+    h += line('Boulder 1', !(rep.b1 && rep.b1.hit), rep.b1 && rep.b1.hit ? `landed on you ${splatHTML(rep.b1.hit)}` : 'clear');
+    h += line('Debris 1', !rep.d1, rep.d1 ? `landed on you ${splatHTML(rep.d1)}` : 'clear');
+    h += line('Rock 2 exit', e2.ok, e2.txt);
+    h += line('Boulder 2', !(rep.b2 && rep.b2.hit), rep.b2 && rep.b2.hit ? `landed on you ${splatHTML(rep.b2.hit)}` : 'clear');
+    h += line('Debris 2', !rep.d2, rep.d2 ? `landed on you ${splatHTML(rep.d2)}` : 'clear');
+    h += line('Prayer', pn.ok, pn.txt);
+    h += '</ul><div class="barrage">';
+    rep.pattern.forEach((st, i) => {
+      const hit = rep.hits[i];
+      const ok = !!(hit && hit.ok);
+      h += `<span class="bchip ${ok ? 'ok' : 'bad'}" style="--c:var(${CSSVAR[st]})"><i>${LETTER[st]}</i>${hit ? splatHTML(ok ? 0 : hit.d) : '<em>–</em>'}</span>`;
+    });
+    el.innerHTML = h + '</div>';
+  }
+  function exampleReport() {
+    renderReport({
+      n: 0, color: 'mage', pattern: ['mage', 'range', 'mage', 'mage', 'range', 'mage'], total: 38, clean: false,
+      b1: { hit: 0 }, b2: { hit: 0 }, d1: 0, d2: 17, moved: { 7: true, 8: true, 10: true }, stepped: true, burstAt: {}, prayClicks: [], wipedEarly: false,
+      hits: [{ ok: true }, { ok: true }, { ok: true }, { ok: false, d: 21 }, { ok: true }, { ok: true }],
+    }, true);
+  }
+
+  /* ================= flow ================= */
+  function showOverlay(kind) {
+    const ov = $('#overlay');
+    if (!kind) { ov.hidden = true; return; }
+    ov.hidden = false;
+    if (kind === 'start') {
+      $('#ov-title').textContent = 'Survive the double rock';
+      $('#ov-text').textContent = 'Dodge both rocks, then pray all six barrage hits. No damage is a clean rep.';
+      $('#ov-keys').hidden = false;
+      $('#ov-go').textContent = 'Click here to play';
+    } else if (kind === 'dead') {
+      $('#ov-title').textContent = 'Oh dear, you are dead!';
+      $('#ov-text').textContent = 'Real hitpoints mode ends the run at 0 HP, and your streak resets. The tick log shows what hit you.';
+      $('#ov-keys').hidden = true;
+      $('#ov-go').textContent = 'Try again';
+    }
+  }
+  function startGame() {
+    if (G.dead) newGame(true);
+    G.started = true;
+    showOverlay(null);
+    resume();
+    cv.focus({ preventScroll: true });
+    if (S.sound || S.metro) tone(1, 0.01, 'sine', 0.0001);
+  }
+  function currentF(now) { return G.running ? clamp((now - G.lastTickAt) / TICK_MS, 0, 1) : G.frozenF; }
+  function pause() { if (!G.running) return; G.frozenF = currentF(performance.now()); G.running = false; G.stepAnimAt = 0; syncUI(); }
+  function resume() {
+    if (G.dead || G.editing) return;
+    G.lastTickAt = performance.now() - clamp(G.frozenF, 0, 0.98) * TICK_MS;
+    G.running = true;
+    G.stepAnimAt = 0;
+    syncUI();
+  }
+  function togglePause() { if (!G.started || G.dead) return; if (G.running) pause(); else resume(); }
+  function step() {
+    if (!G.started || G.running || G.dead || G.editing) return;
+    G.stepping = true;
+    doTick(performance.now());
+    G.stepping = false;
+    G.stepAnimAt = performance.now();
+    G.frozenF = 1;
+  }
+  function frame(now) {
+    if (G.running) {
+      if (now - G.lastTickAt > TICK_MS * 6) G.lastTickAt = now - TICK_MS;
+      while (G.running && now - G.lastTickAt >= TICK_MS) {
+        G.lastTickAt += TICK_MS;
+        doTick(G.lastTickAt);
+      }
+    }
+    render(now);
+    requestAnimationFrame(frame);
+  }
+
+  /* ================= input wiring ================= */
+  function localXY(e) { const r = cv.getBoundingClientRect(); return [(e.clientX - r.left) * V.cw / r.width, (e.clientY - r.top) * V.ch / r.height]; }
+  // In play a press on a prayer queues it for the next tick. While moving prayers, drag one to any slot,
+  // or click one and then click where it goes; landing on another prayer swaps the two.
+  function panelDown(mx, my, e) {
+    const slot = slotAt(mx, my);
+    if (slot < 0) return;
+    const st = prayerAt(slot);
+    if (G.editing) {
+      if (st) { G.drag = { style: st, x: mx, y: my, x0: mx, y0: my, moved: false }; cv.setPointerCapture(e.pointerId); }
+      else if (G.editSel) { movePrayer(G.editSel, slot); G.editSel = null; }
+      return;
+    }
+    if (!st || !G.started || G.dead) return;
+    queueInput({ type: 'pray', style: st });
+    sfx('pray');
+  }
+  function dragEnd(mx, my) {
+    const d = G.drag;
+    G.drag = null;
+    if (d.moved) {
+      const slot = inPanel(mx, my) ? slotAt(mx, my) : -1;
+      if (slot >= 0) movePrayer(d.style, slot);
+      G.editSel = null;
+    } else if (G.editSel && G.editSel !== d.style) {
+      movePrayer(G.editSel, S.pray[d.style]);
+      G.editSel = null;
+    } else G.editSel = G.editSel === d.style ? null : d.style;
+  }
+  function toggleRun() {
+    if (G.started && !G.dead) { queueInput({ type: 'run' }); sfx('pray'); }
+    else G.player.run = !G.player.run;
+  }
+  function setEditing(on) {
+    G.editing = on;
+    G.editSel = null;
+    G.drag = null;
+    if (on) pause(); else if (G.started && !G.dead) resume();
+    syncUI();
+  }
+  function bind() {
+    cv.addEventListener('pointerdown', e => {
+      if (e.button !== 0) return;
+      const [mx, my] = localXY(e);
+      G.mouse = [mx, my];
+      if (inPanel(mx, my)) { e.preventDefault(); panelDown(mx, my, e); return; }
+      if (G.editing) return;
+      if (inOrb(mx, my)) { e.preventDefault(); toggleRun(); return; }
+      if (!G.started || G.dead) return;
+      const [tx, ty] = worldTile(mx, my);
+      G.clickMark = { x: mx, y: my, t0: performance.now() };
+      queueInput({ type: 'move', x: tx, y: ty, walk: e.ctrlKey || e.metaKey });
+    });
+    cv.addEventListener('pointermove', e => {
+      G.mouse = localXY(e);
+      const d = G.drag;
+      if (d) { d.x = G.mouse[0]; d.y = G.mouse[1]; if (Math.hypot(d.x - d.x0, d.y - d.y0) > 4) d.moved = true; }
+    });
+    cv.addEventListener('pointerup', e => { if (G.drag) dragEnd(...localXY(e)); });
+    cv.addEventListener('pointercancel', () => { G.drag = null; });
+    cv.addEventListener('pointerleave', () => { if (!G.drag) G.mouse = null; });
+    cv.addEventListener('contextmenu', e => e.preventDefault());
+
+    $('#ov-go').addEventListener('click', startGame);
+    $('#btn-play').addEventListener('click', () => { if (!G.started || G.dead) startGame(); else togglePause(); });
+    $('#btn-step').addEventListener('click', step);
+    $('#btn-restart').addEventListener('click', () => {
+      const wasStarted = G.started;
+      newGame(wasStarted);
+      showOverlay(wasStarted ? null : 'start');
+      if (wasStarted) { log('Restarted. Session stats kept.', 'hint'); resume(); }
+      syncUI();
+    });
+    $('#btn-reset-stats').addEventListener('click', () => { ST = freshStats(); save(); syncStats(); });
+    $('#btn-edit').addEventListener('click', () => setEditing(!G.editing));
+    $('#btn-reset-layout').addEventListener('click', () => { S.pray = { ...DEFAULT_PRAY }; G.editSel = null; save(); });
+
+    document.addEventListener('keydown', e => {
+      const tag = (e.target && e.target.tagName || '').toLowerCase();
+      if (tag === 'select' || tag === 'input' || tag === 'textarea' || e.altKey || e.metaKey || (e.ctrlKey && e.key !== 'Control')) return;
+      const k = e.key.toLowerCase();
+      if (k === 'r') { if (G.started) queueInput({ type: 'run' }); }
+      else if (k === ' ') { if (G.started && !G.dead && !G.editing) { e.preventDefault(); togglePause(); } }
+      else if (k === '.' || k === 'n') { if (G.started && !G.running) { e.preventDefault(); step(); } }
+      else if (k === 'escape') { if (G.editing) setEditing(false); else pause(); }
+    });
+    document.addEventListener('keyup', e => { if (e.key === ' ' && G.started && (e.target.tagName || '').toLowerCase() === 'button') e.preventDefault(); });
+    document.addEventListener('visibilitychange', () => { if (document.hidden) pause(); });
+
+    const relayout = () => { layout(); };
+    const sel = (id, k, conv, after) => {
+      const el = $(id);
+      el.value = String(conv === 'bool' ? (S[k] ? 1 : 0) : S[k]);
+      el.addEventListener('change', () => {
+        S[k] = conv === 'num' ? Number(el.value) : conv === 'bool' ? el.value === '1' : el.value;
+        if (after) after();
+        save(); syncUI();
+      });
+    };
+    sel('#set-color', 'color');
+    sel('#set-death', 'death', 'bool');
+    sel('#set-latency', 'latency', 'num');
+    sel('#set-camera', 'camera');
+    sel('#set-zoom', 'zoom', 'num', relayout);
+    sel('#set-ui', 'ui', null, relayout);
+    const chk = (id, k) => {
+      const el = $(id);
+      el.checked = !!S[k];
+      el.addEventListener('change', () => { S[k] = el.checked; save(); syncUI(); });
+    };
+    chk('#set-truetile', 'trueTile'); chk('#set-hover', 'hover'); chk('#set-grid', 'grid'); chk('#set-field', 'field');
+    chk('#set-paths', 'paths'); chk('#set-queued', 'queued'); chk('#set-chat', 'chat');
+    chk('#set-sound', 'sound'); chk('#set-metro', 'metro');
+    $('#ov-ico-pray').src = A.icons['Prayer icon'];
+    $('#ov-ico-run').src = A.icons['Run orb on'];
+    document.documentElement.style.setProperty('--hs-red', `url("${A.icons['Damage hitsplat']}")`);
+    document.documentElement.style.setProperty('--hs-blue', `url("${A.icons['Zero damage hitsplat']}")`);
+
+    if ('ResizeObserver' in window) new ResizeObserver(layout).observe(cv); else window.addEventListener('resize', layout);
+  }
+
+  function boot(data) {
+    const saved = loadSaved();
+    const fromHot = data && data.S ? data : null;
+    S = { ...DEFAULTS, ...migrate((fromHot && fromHot.S) || saved.s || {}) };
+    ST = { ...freshStats(), ...((fromHot && fromHot.ST) || saved.st || {}) };
+    ST.dmg = { ...freshStats().dmg, ...(ST.dmg || {}) };
+    ST.hitBy = { ...freshStats().hitBy, ...(ST.hitBy || {}) };
+    S.pray = validPray(S.pray) ? { ...S.pray } : { ...DEFAULT_PRAY };
+    for (const [n, src] of Object.entries(A.icons)) loadImg(n, src);
+    loadImg('doom', A.doom);
+    loadImg('player', A.player);
+    IMG['Prayer icon'].addEventListener('load', () => { if (PANEL) buildPanel(PANEL.ui, PANEL.dpr); });
+    buildSprites();
+    buildFloor();
+    newGame(false);
+    buildRuler();
+    bind();
+    layout();
+    exampleReport();
+    syncUI();
+    if (window.claude && window.claude.hot && window.claude.hot.snapshot) window.claude.hot.snapshot(() => ({ S, ST }));
+    window.__drs = { get G() { return G; }, get S() { return S; }, set S(v) { S = v; }, get ST() { return ST; }, render, doTick, queueInput, findPath, startRep, newGame, R, V, cam, layout, camGoal, updateCam, rockState, rockScreen, sx, sy, DOOM_VIEW, YOU_VIEW, migrate, movePrayer, prayerAt, inOrb, orbGeom };
+    requestAnimationFrame(frame);
+  }
+
+  if (window.claude && window.claude.hot && window.claude.hot.ready) window.claude.hot.ready(boot);
+  else boot((window.claude && window.claude.hot && window.claude.hot.data) || {});
+})();
+</script>

@@ -1,0 +1,8 @@
+# build and test output
+double-rock-sim.html
+test/harness.html
+test/result.txt
+test/out.txt
+test/chrome-profile*/
+venv/
+__pycache__/

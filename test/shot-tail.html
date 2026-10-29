@@ -1,0 +1,56 @@
+<script>
+window.addEventListener("load", () => setTimeout(() => {
+  const D = window.__drs;
+  const sc = (location.hash || "#hover").slice(1);
+  D.S = Object.assign({}, D.S, { color: sc === "green" ? "range" : "mage", std: false, chat: true, camera: "frame", zoom: 12 });
+  D.newGame(true);
+  document.getElementById("overlay").hidden = true;
+  const run = n => { for (let i = 0; i < n; i++) { D.G.stepping = true; D.doTick(performance.now()); D.G.stepping = false; } };
+  const place = (x, y) => { D.G.player.x = x; D.G.player.y = y; D.G.player.trail = [[x, y]]; };
+  let f = 0.5;
+  if (sc === "hover" || sc === "green") { run(6 + 5); f = 0.5; }
+  else if (sc === "dip") { run(6 + 6); f = 0.25; }
+  else if (sc === "barrage" || sc === "og") {
+    run(6 + 6); D.queueInput({ type: "move", x: 22, y: 1 }); run(1);
+    D.queueInput({ type: "move", x: 21, y: 4 }); run(3);
+    D.queueInput({ type: "pray", style: "mage" }); run(1); f = 0.45;
+  }
+  else if (sc === "corner") { place(2, 21); run(6 + 2); f = 0.6; }
+  else if (sc === "south") { place(12, 19); run(6); f = 0.85; }
+  else if (sc === "far") { place(20, 2); run(6 + 4); f = 0.5; }
+  else if (sc.startsWith("flight")) {
+    // flight-<whole ticks since throw>-<fraction>-<x>-<y>: rock 1 at that age with you standing on x,y
+    const [, k, ff, x, y] = sc.split("-").map(Number);
+    D.S = Object.assign({}, D.S, { death: false });
+    place(x, y); run(6 + k); f = ff;
+  }
+  else if (sc === "report") {
+    run(6 + 17);
+    let w = 0; while (!D.G.rep && w++ < 20) run(1);
+    run(10); D.queueInput({ type: "pray", style: "mage" }); run(8);
+    f = 0.5;
+  }
+  else if (sc === "dead") {
+    D.S = Object.assign({}, D.S, { death: true });
+    D.queueInput({ type: "pray", style: "mage" });
+    run(6 + 13);
+    D.G.player.hp = 20;
+    run(1);
+    if (!D.G.dead) { D.G.player.hp = 1; run(1); }
+    f = 1;
+  }
+  else if (sc === "edit") {
+    run(2);
+    D.G.editing = true;
+    const [cx, cy] = [15 + 28 + 37 * 2, 38 + 33 + 37 * 3];
+    const X = D.V.px + cx * D.V.ui, Y = D.V.py + cy * D.V.ui;
+    D.G.drag = { style: "mage", x: X, y: Y, x0: 0, y0: 0, moved: true };
+    D.G.mouse = [X, Y];
+    document.getElementById("paused").hidden = false;
+    document.getElementById("paused").textContent = "Drag a prayer to any slot · Done when finished";
+  }
+  if (sc === "og") { D.S = Object.assign({}, D.S, { chat: false }); document.getElementById("paused").hidden = true; }
+  D.G.frozenF = f; D.G.stepAnimAt = 0; D.cam.init = false;
+  if (sc !== "edit") D.G.mouse = sc === "orb" ? [D.orbGeom().x, D.orbGeom().y] : null;
+}, 300));
+</script>
