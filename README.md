@@ -58,6 +58,8 @@ Times are in game ticks of 0.6 s. T is the tick Doom throws rock 1.
 
 A boulder that lands on you pushes you to a random tile next to it and stays on the floor. Rock 2's debris never lands on rock 1's debris tiles. On each tick the sim handles your clicks first, then Doom and the falling rocks, then your movement.
 
+Prayer clicks work as in the game. Your prayer book lights up the moment you click, however fast you click, and the prayer itself (your overhead, and what a hit checks) changes on the next tick, when every click since the last tick is processed in order. So only where your clicks end up before a tick counts. Doom's barrage projectiles check your prayer when they reach you, as the Leviathan's do, so a switch clicked during the tick before a hit lands still blocks it. A prayer clicked before rock 2 bursts is switched off by the burst, which is why you pray after it.
+
 These timings come from the [OSRS Wiki](https://oldschool.runescape.wiki/w/Doom_of_Mokhaiotl) and a frame-by-frame count of the wiki's delve 8 clip. Some values are estimates: about 18 debris tiles per rock, the damage rolls (15 to 21 per rock, 15 to 65 per unprayed barrage hit) and the 2-tick stun after a boulder push.
 
 ## Rockblock + punish
@@ -122,7 +124,7 @@ The first command builds the bare page. The second wraps it as a complete web pa
 bash tools/run_tests.sh
 ```
 
-This builds the page, appends `test/harness-tail.html` and runs it in headless Chrome. The harness steps the sim tick by tick and runs 161 checks covering timings, damage, prayers, sounds, the rock flights, Rockblock + punish, the camera, saved settings and the page panels. If Chrome isn't at its usual Windows path, set `CHROME` to its location. Set `PYTHON` to choose the interpreter.
+This builds the page, appends `test/harness-tail.html` and runs it in headless Chrome. The harness steps the sim tick by tick and runs 168 checks covering timings, damage, prayers, sounds, the rock flights, Rockblock + punish, the camera, saved settings and the page panels. If Chrome isn't at its usual Windows path, set `CHROME` to its location. Set `PYTHON` to choose the interpreter.
 
 `test/shot-tail.html` freezes a scenario for screenshots. Append it to the built page and open the result with a hash such as `#barrage`.
 

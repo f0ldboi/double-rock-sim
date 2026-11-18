@@ -634,6 +634,15 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
     G.inputs.push(inp);
     if (inp.type === 'pray' && G.rep) G.rep.prayClicks.push({ style: inp.style, clicked: now });
   }
+  // The prayer as your game client shows it: the prayer you have, with every prayer click since the last tick applied
+  // in order. The prayer book lights up the moment you click, as in the game, however fast you click; the server
+  // side (your overhead, and what a hit checks) catches up on the next tick, when all those clicks are processed in
+  // order and only where they end up counts.
+  function bookPrayer() {
+    let p = G.player.prayer;
+    for (const q of G.inputs) if (q.type === 'pray') p = p === q.style ? null : q.style;
+    return p;
+  }
   function applyInputs(tickTime) {
     const keep = [];
     for (const inp of G.inputs) {
@@ -2282,7 +2291,7 @@ if (typeof module !== 'undefined') module.exports = OsrsSynth;
       const st = G.drag ? G.drag.style : slot >= 0 ? prayerAt(slot) : null;
       if (!st) return;
       if (G.editing) parts = [['Move ', '#ffffff'], [PRAY_NAME[st], '#ff9040']];
-      else parts = [[G.player.prayer === st ? 'Deactivate ' : 'Activate ', '#ffffff'], [PRAY_NAME[st], '#ff9040']];
+      else parts = [[bookPrayer() === st ? 'Deactivate ' : 'Activate ', '#ffffff'], [PRAY_NAME[st], '#ff9040']];
     } else if (inSpec(mx, my)) parts = [['Use ', '#ffffff'], ['Special Attack', '#ff9040']];
     else if (G.editing) return;
     else if (onDoom(mx, my)) parts = [['Attack ', '#ffffff'], ['Doom of Mokhaiotl', '#ffff00']];
@@ -2338,9 +2347,10 @@ if (typeof module !== 'undefined') module.exports = OsrsSynth;
         ctx.strokeRect(Math.round(X - PRAY_BOX / 2 * ui) + 0.5, Math.round(Y - PRAY_BOX / 2 * ui) + 0.5, Math.round(PRAY_BOX * ui) - 1, Math.round(PRAY_BOX * ui) - 1);
       }
     }
+    const shown = bookPrayer();
     for (const [st] of PROTECTS) {
       const [X, Y] = slotXY(S.pray[st]);
-      if (P.prayer === st) {
+      if (shown === st) {
         // the game's activated-prayer glow, which fills the prayer's 34x34 box
         const glow = IMG['Activated prayer'], b = PRAY_BOX * ui;
         if (ready(glow)) ctx.drawImage(glow, Math.round(X - b / 2), Math.round(Y - b / 2), Math.round(b), Math.round(b));
@@ -2830,7 +2840,7 @@ if (typeof module !== 'undefined') module.exports = OsrsSynth;
     exampleReport();
     syncUI();
     if (window.claude && window.claude.hot && window.claude.hot.snapshot) window.claude.hot.snapshot(() => ({ S, ST }));
-    window.__drs = { get G() { return G; }, get S() { return S; }, set S(v) { S = v; }, get ST() { return ST; }, render, doTick, queueInput, findPath, startRep, newGame, R, V, cam, layout, camGoal, updateCam, rockState, rockScreen, sx, sy, DOOM_VIEW, YOU_VIEW, migrate, movePrayer, prayerAt, specGeom, inSpec, soundLog, SND, THROW_SOUNDS, WINDUP, synth: OsrsSynth, A, RB, CHARGE, HAL, doomDist, inReach, setMode, worldTile, START, slotAt, argb, destTile, TI_DEFAULTS, playerSprite, outGain: () => OUT && OUT.gain.value, volGain, audio, chargeBarGeom, onDoom };
+    window.__drs = { get G() { return G; }, get S() { return S; }, set S(v) { S = v; }, get ST() { return ST; }, render, doTick, queueInput, findPath, startRep, newGame, R, V, cam, layout, camGoal, updateCam, rockState, rockScreen, sx, sy, DOOM_VIEW, YOU_VIEW, migrate, movePrayer, prayerAt, specGeom, inSpec, soundLog, SND, THROW_SOUNDS, WINDUP, synth: OsrsSynth, A, RB, CHARGE, HAL, doomDist, inReach, setMode, worldTile, START, slotAt, argb, destTile, bookPrayer, TI_DEFAULTS, playerSprite, outGain: () => OUT && OUT.gain.value, volGain, audio, chargeBarGeom, onDoom };
     requestAnimationFrame(frame);
   }
 

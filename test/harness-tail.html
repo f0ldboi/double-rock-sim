@@ -95,6 +95,26 @@ window.addEventListener('load', () => setTimeout(() => {
     ok(document.querySelectorAll('#report .bchip.ok').length === 6, 'B all six barrage hits blocked');
     ok(document.querySelectorAll('#report .bchip .hs.zero').length === 6, 'P blocked hits show blue zero hitsplats');
 
+    // Q: prayer clicks show in the prayer book at once and take effect on the next tick, all of them in order
+    D.newGame(true);
+    D.queueInput({ type: 'pray', style: 'mage' });
+    ok(D.bookPrayer() === 'mage' && D.G.player.prayer === null, 'Q a prayer click lights up the book at once, the prayer itself changes on the tick');
+    D.queueInput({ type: 'pray', style: 'range' });
+    ok(D.bookPrayer() === 'range', 'Q you can switch again before the tick, as fast as you click');
+    run(1);
+    ok(D.G.player.prayer === 'range' && D.bookPrayer() === 'range', 'Q on the tick, the last switch is the prayer you have');
+    D.queueInput({ type: 'pray', style: 'range' }); D.queueInput({ type: 'pray', style: 'range' });
+    ok(D.bookPrayer() === 'range', 'Q two clicks on the same prayer within a tick leave it as it was');
+    run(1);
+    ok(D.G.player.prayer === 'range', 'Q and so does the tick');
+    D.S = Object.assign({}, D.S, { color: 'mage' });
+    D.newGame(true);
+    run(6 + 10);
+    ok(r() === 10 && D.G.player.prayer === null, 'Q at T+10, burst 2 has switched prayers off');
+    D.queueInput({ type: 'pray', style: 'range' }); D.queueInput({ type: 'pray', style: 'mage' });
+    run(1);
+    ok(r() === 11 && D.G.rep.hits[0] && D.G.rep.hits[0].ok, 'Q switching twice before the first barrage hit lands: the last prayer, Magic, blocks the Magic hit on T+11');
+
     // C: praying between the bursts gets wiped
     D.newGame(true);
     run(6 + 8);
