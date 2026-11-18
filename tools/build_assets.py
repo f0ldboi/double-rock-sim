@@ -16,7 +16,7 @@ ICONS = [
     'Protect from Magic', 'Protect from Missiles', 'Protect from Melee',
     'Protect from Magic overhead', 'Protect from Missiles overhead', 'Protect from Melee overhead',
     'Protect from Magic and Missiles overhead',
-    'Damage hitsplat', 'Zero damage hitsplat', 'Prayer icon',
+    'Damage hitsplat', 'Zero damage hitsplat', 'Prayer icon', 'Activated prayer',
 ]
 
 

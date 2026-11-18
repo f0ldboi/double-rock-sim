@@ -29,7 +29,7 @@ You always run, as you would at Doom. Both modes start you south of Doom, below 
 
 ## Features
 
-- The prayer book uses the in-game layout. **Arrange prayers** moves the three protection prayers to any slot to match your own book.
+- The prayer book uses the in-game layout. As in the game's prayer interface, each prayer is a 34x34 box on a 37 px grid: a click anywhere in the box counts, and the gaps between boxes do nothing. The icons are drawn a little larger than the game's. **Arrange prayers** moves the three protection prayers to any slot to match your own book.
 - Real hitpoints mode ends the run at 0 HP. Practice mode keeps you on 1 HP and tells you when a hit would have killed you.
 - The Last rep report shows how you exited each rock, what landed on you and each barrage hit. Session stats track clean reps, your streak, and damage taken and times hit from debris, boulders and the barrage.
 - The game's own sound effects, played on the same ticks as in game, so you can learn the double rock by ear. See [Sound cues](#sound-cues).
@@ -121,7 +121,7 @@ The first command builds the bare page. The second wraps it as a complete web pa
 bash tools/run_tests.sh
 ```
 
-This builds the page, appends `test/harness-tail.html` and runs it in headless Chrome. The harness steps the sim tick by tick and runs 151 checks covering timings, damage, prayers, sounds, the rock flights, Rockblock + punish, the camera, saved settings and the page panels. If Chrome isn't at its usual Windows path, set `CHROME` to its location. Set `PYTHON` to choose the interpreter.
+This builds the page, appends `test/harness-tail.html` and runs it in headless Chrome. The harness steps the sim tick by tick and runs 153 checks covering timings, damage, prayers, sounds, the rock flights, Rockblock + punish, the camera, saved settings and the page panels. If Chrome isn't at its usual Windows path, set `CHROME` to its location. Set `PYTHON` to choose the interpreter.
 
 `test/shot-tail.html` freezes a scenario for screenshots. Append it to the built page and open the result with a hash such as `#barrage`.
 

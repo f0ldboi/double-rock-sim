@@ -303,6 +303,10 @@ window.addEventListener('load', () => setTimeout(() => {
     D.movePrayer('melee', 2);
     ok(D.S.pray.melee === 2 && D.S.pray.range === 3, 'J dropping on another prayer swaps the two');
     D.S = Object.assign({}, D.S, { pray: { mage: 1, range: 2, melee: 3 } });
+    D.layout();
+    const ju = D.V.ui, jx = D.V.px + (15 + 28 + 37) * ju, jy = D.V.py + (38 + 33) * ju;
+    ok(D.slotAt(jx, jy) === 1 && D.slotAt(jx + 16 * ju, jy - 16 * ju) === 1 && D.slotAt(jx + 18.5 * ju, jy) === -1 && D.slotAt(jx, jy + 18.5 * ju) === -1 && D.slotAt(jx + 37 * ju, jy) === 2, 'J each prayer clicks anywhere in its 34x34 box, as in the game, and the 3 px between boxes do nothing');
+    ok(!!D.A.icons['Activated prayer'] && D.A.meta['Activated prayer'].join() === '34,34', 'J an active prayer shows the game activated-prayer glow, 34x34');
 
     // K: the old Rockblock drill toggle is gone, and the top row has the mode switch instead
     ok(!document.getElementById('btn-drill') && !('drill' in D.S) && !D.setupDrill, 'K no Rockblock drill toggle or setting');

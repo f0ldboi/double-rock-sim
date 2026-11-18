@@ -408,6 +408,8 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
   const FR = { side: 15, top: 38, bottom: 38 };
   const PANEL_W = PB.w + FR.side * 2, PANEL_H = PB.h + FR.top + FR.bottom;
   const cellCentre = (i) => [FR.side + 28 + 37 * (i % 5), FR.top + 33 + 37 * Math.floor(i / 5)];
+  // prayer icons are drawn this much larger than the game's sprites
+  const PRAY_ICON = 1.15;
 
   /* ================= helpers ================= */
   const $ = s => document.querySelector(s);
@@ -1951,10 +1953,11 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
     ctx.drawImage(PANEL.canvas, V.px, V.py, V.pw, V.ph);
     const P = G.player;
     const slotXY = i => { const [cx, cy] = cellCentre(i); return [V.px + cx * ui, V.py + cy * ui]; };
+    // the prayer icons are drawn a little larger than the game's, for easier reading and clicking
     const icon = (st, X, Y, alpha) => {
       const im = IMG[PRAY_NAME[st]];
       if (!ready(im)) return;
-      const w = im.naturalWidth * ui, h = im.naturalHeight * ui;
+      const w = im.naturalWidth * ui * PRAY_ICON, h = im.naturalHeight * ui * PRAY_ICON;
       ctx.globalAlpha = alpha;
       ctx.drawImage(im, Math.round(X - w / 2), Math.round(Y - h / 2), Math.round(w), Math.round(h));
       ctx.globalAlpha = 1;
@@ -1966,15 +1969,16 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
       for (let i = 0; i < 30; i++) {
         const [X, Y] = slotXY(i);
         ctx.strokeStyle = i === hover && (G.drag || G.editSel) ? 'rgba(255,255,0,0.8)' : 'rgba(255,255,255,0.16)'; ctx.lineWidth = 1;
-        ctx.strokeRect(Math.round(X - 16 * ui) + 0.5, Math.round(Y - 16 * ui) + 0.5, Math.round(32 * ui), Math.round(32 * ui));
+        ctx.strokeRect(Math.round(X - PRAY_BOX / 2 * ui) + 0.5, Math.round(Y - PRAY_BOX / 2 * ui) + 0.5, Math.round(PRAY_BOX * ui) - 1, Math.round(PRAY_BOX * ui) - 1);
       }
     }
     for (const [st] of PROTECTS) {
       const [X, Y] = slotXY(S.pray[st]);
       if (P.prayer === st) {
-        const gr = ctx.createRadialGradient(X, Y, 0, X, Y, 16 * ui);
-        gr.addColorStop(0, 'rgba(206,182,116,0.95)'); gr.addColorStop(0.82, 'rgba(196,172,110,0.95)'); gr.addColorStop(1, 'rgba(150,132,86,0.0)');
-        ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(X, Y, 16.5 * ui, 0, Math.PI * 2); ctx.fill();
+        // the game's activated-prayer glow, which fills the prayer's 34x34 box
+        const glow = IMG['Activated prayer'], b = PRAY_BOX * ui;
+        if (ready(glow)) ctx.drawImage(glow, Math.round(X - b / 2), Math.round(Y - b / 2), Math.round(b), Math.round(b));
+        else { ctx.fillStyle = 'rgba(206,182,116,0.9)'; ctx.beginPath(); ctx.arc(X, Y, b / 2, 0, Math.PI * 2); ctx.fill(); }
       }
       icon(st, X, Y, G.drag && G.drag.moved && G.drag.style === st ? 0.3 : 1);
       if (S.queued && G.inputs.some(q => q.type === 'pray' && q.style === st)) {
@@ -2038,11 +2042,16 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
     save();
   }
   const inPanel = (mx, my) => mx >= V.px && my >= V.py;
+  // As in the game's prayer book (interface 541), each prayer is a 34x34 box on a 37 px grid: a click anywhere in the
+  // box counts, and the 3 px between boxes do nothing
+  const PRAY_BOX = 34;
   function slotAt(mx, my) {
-    const lx = (mx - V.px) / V.ui - FR.side, ly = (my - V.py) / V.ui - FR.top;
-    const c = Math.floor((lx - 9.5) / 37), r = Math.floor((ly - 14.5) / 37);
-    if (c < 0 || c > 4 || r < 0 || r > 5) return -1;
-    return r * 5 + c;
+    const lx = (mx - V.px) / V.ui, ly = (my - V.py) / V.ui, half = PRAY_BOX / 2;
+    for (let i = 0; i < 30; i++) {
+      const [cx, cy] = cellCentre(i);
+      if (Math.abs(lx - cx) < half && Math.abs(ly - cy) < half) return i;
+    }
+    return -1;
   }
   function worldTile(mx, my) { return [Math.floor((mx - V.ax) / V.TS + cam.x), Math.floor((my - V.ay) / V.TS + cam.y)]; }
 
@@ -2433,7 +2442,7 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
     exampleReport();
     syncUI();
     if (window.claude && window.claude.hot && window.claude.hot.snapshot) window.claude.hot.snapshot(() => ({ S, ST }));
-    window.__drs = { get G() { return G; }, get S() { return S; }, set S(v) { S = v; }, get ST() { return ST; }, render, doTick, queueInput, findPath, startRep, newGame, R, V, cam, layout, camGoal, updateCam, rockState, rockScreen, sx, sy, DOOM_VIEW, YOU_VIEW, migrate, movePrayer, prayerAt, specGeom, inSpec, soundLog, SND, THROW_SOUNDS, WINDUP, synth: OsrsSynth, A, RB, CHARGE, HAL, doomDist, inReach, setMode, worldTile, START, playerSprite, outGain: () => OUT && OUT.gain.value, volGain, audio, chargeBarGeom, onDoom };
+    window.__drs = { get G() { return G; }, get S() { return S; }, set S(v) { S = v; }, get ST() { return ST; }, render, doTick, queueInput, findPath, startRep, newGame, R, V, cam, layout, camGoal, updateCam, rockState, rockScreen, sx, sy, DOOM_VIEW, YOU_VIEW, migrate, movePrayer, prayerAt, specGeom, inSpec, soundLog, SND, THROW_SOUNDS, WINDUP, synth: OsrsSynth, A, RB, CHARGE, HAL, doomDist, inReach, setMode, worldTile, START, slotAt, playerSprite, outGain: () => OUT && OUT.gain.value, volGain, audio, chargeBarGeom, onDoom };
     requestAnimationFrame(frame);
   }
 
