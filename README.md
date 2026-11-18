@@ -25,7 +25,7 @@ It has two modes, picked in the top row:
 | Pause | Space |
 | Next tick (while paused) | `.` |
 
-You always run, as you would at Doom.
+You always run, as you would at Doom. Both modes start you south of Doom, below it on screen, where most players keep their character.
 
 ## Features
 
@@ -60,10 +60,10 @@ These timings come from the [OSRS Wiki](https://oldschool.runescape.wiki/w/Doom_
 
 ## Rockblock + punish
 
-You hold a crystal halberd in this mode. It drills the OSRS Wiki's [Double Rockblock](https://oldschool.runescape.wiki/w/Doom_of_Mokhaiotl/Strategies#Double_Rockblock) from the east side, together with the [melee punish](https://oldschool.runescape.wiki/w/Doom_of_Mokhaiotl/Strategies#Melee_punish) of Doom's melee charge. Every rep starts on tile 1, and you go back there before the next one.
+You hold a crystal halberd in this mode. It drills the OSRS Wiki's [Double Rockblock](https://oldschool.runescape.wiki/w/Doom_of_Mokhaiotl/Strategies#Double_Rockblock) from the south side, together with the [melee punish](https://oldschool.runescape.wiki/w/Doom_of_Mokhaiotl/Strategies#Melee_punish) of Doom's melee charge. Every rep starts on tile 1, and you go back there before the next one.
 
-1. Stand on tile 1, the green tile 10 tiles east of Doom's centre.
-2. When rock 1 dips (T+6), click tile 2, 5 tiles north. Boulder 1 lands on tile 1.
+1. Stand on tile 1, the green tile 10 tiles south of Doom's centre.
+2. When rock 1 dips (T+6), click tile 2, 5 tiles east. Boulder 1 lands on tile 1.
 3. When rock 2 dips (T+9), turn on the special attack and click Doom. Boulder 2 lands on tile 2, and you run to the halberd's reach (the dashed line, 2 tiles from Doom) and hit.
 4. Pray the barrage as usual on the way.
 
@@ -71,7 +71,7 @@ On rock 2's throw (T+3), Doom prays against magic and ranged, and a yellow charg
 
 A rep is clean when both boulders are on their tiles, you punished with the special, and you took no damage. The crystal halberd reaches 2 tiles and attacks every 7 ticks. Its special, Sweep, costs 30% energy and hits Doom twice. Each hitsplat on the charge adds the punish bonus, 23 in the wiki's example gear.
 
-Tile 1 and Doom's centre are 41,37 and 31,37 in the wiki's Rockblock tile markers. Tile 2, the timing of the moves and a punish on T+13 come from the wiki's delve 8+ double rockblock setup clip. The charge starting on T+3, its loop sound every tick and the cancel on a punish were timed from the audio of the wiki's clips. The beam on T+16 is an estimate: in the delve 8 clip the charge bar fills at a steady rate that would complete it about 12.4 ticks after it starts.
+The wiki shows the setup from the east side. In its Rockblock tile markers, tile 1 is 41,37 and Doom's centre is 31,37. Tile 2 (5 tiles north of tile 1), the timing of the moves and a punish on T+13 come from its delve 8+ double rockblock setup clip. The sim turns the setup a quarter to the south side, so tile 2 is still on your right as you face Doom. The charge starting on T+3, its loop sound every tick and the cancel on a punish were timed from the audio of the wiki's clips. The beam on T+16 is an estimate: in the delve 8 clip the charge bar fills at a steady rate that would complete it about 12.4 ticks after it starts.
 
 ## Sound cues
 
@@ -120,7 +120,7 @@ The first command builds the bare page. The second wraps it as a complete web pa
 bash tools/run_tests.sh
 ```
 
-This builds the page, appends `test/harness-tail.html` and runs it in headless Chrome. The harness steps the sim tick by tick and runs 147 checks covering timings, damage, prayers, sounds, the rock flights, Rockblock + punish, the camera, saved settings and the page panels. If Chrome isn't at its usual Windows path, set `CHROME` to its location. Set `PYTHON` to choose the interpreter.
+This builds the page, appends `test/harness-tail.html` and runs it in headless Chrome. The harness steps the sim tick by tick and runs 149 checks covering timings, damage, prayers, sounds, the rock flights, Rockblock + punish, the camera, saved settings and the page panels. If Chrome isn't at its usual Windows path, set `CHROME` to its location. Set `PYTHON` to choose the interpreter.
 
 `test/shot-tail.html` freezes a scenario for screenshots. Append it to the built page and open the result with a hash such as `#barrage`.
 

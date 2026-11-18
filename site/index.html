@@ -362,11 +362,13 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
   const LIFT_H = 3.3, ROCK_D = 1.9;
   const LAND_DELAY = 2;
   const FIELD = 4;
-  const START = { x: 17, y: 6 };
-  // Rockblock + punish is the OSRS Wiki's Double Rockblock from the east side. Tile 1 is the green tile 10 east of
-  // Doom's centre (41,37 in the wiki's Rockblock tile markers, with Doom's centre on 31,37), tile 2 is 5 tiles north of
-  // it, as in the wiki's delve 8+ setup clip. Every rep starts on tile 1.
-  const RB = { t1: { x: 22, y: 12 }, t2: { x: 22, y: 7 } };
+  // you start south of Doom, below it on screen, where most players keep their character with the camera facing north
+  const START = { x: 12, y: 19 };
+  // Rockblock + punish is the OSRS Wiki's Double Rockblock, turned to the south side. The wiki shows it from the east:
+  // tile 1 is the green tile 10 east of Doom's centre (41,37 in its Rockblock tile markers, Doom's centre on 31,37) and
+  // tile 2 is 5 north of it (its delve 8+ setup clip). Turned a quarter, tile 1 is 10 south of Doom's centre and tile 2
+  // 5 east of it, still to your right as you face Doom. Every rep starts on tile 1.
+  const RB = { t1: { x: 12, y: 22 }, t2: { x: 17, y: 22 } };
   // Doom's melee charge comes with the throws. On rock 2's throw it prays against magic and ranged and charges its
   // beam, and only a melee hit stops it. The charge start and the loop each tick are from the wiki clips' audio. The
   // beam firing on T+16 is an estimate from how fast the charge bar fills in the delve 8 clip.
@@ -559,6 +561,7 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
   // how many tiles a tile is from Doom's 5x5 body, a diagonal step counting as one
   const doomDist = (x, y) => Math.max(BOSS.x - x, x - (BOSS.x + BOSS.s - 1), BOSS.y - y, y - (BOSS.y + BOSS.s - 1), 0);
   const inReach = (x, y) => { const d = doomDist(x, y); return d >= 1 && d <= HAL.reach; };
+  const lexLess = (a, b) => { for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return a[i] < b[i]; return false; };
   // Attack runs you to the nearest tile in the halberd's reach, as the game paths you, and you swing once you are there
   function attackDoom(walk) {
     const P = G.player;
@@ -567,13 +570,14 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
     P.path = []; P.dest = null;
     if (inReach(P.x, P.y)) return;
     const dist = bfs(P.x, P.y);
-    let best = null, bestScore = Infinity;
+    let best = null, bestScore = null;
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
       const d = dist[x + y * W];
       if (d < 0 || !inReach(x, y)) continue;
-      // the fewest steps, and at equal steps the full reach rather than next to Doom
-      const score = d * 2 + (doomDist(x, y) === HAL.reach ? 0 : 1);
-      if (score < bestScore) { bestScore = score; best = [x, y]; }
+      // the fewest steps; then the full reach rather than next to Doom; then the straightest line, so you run
+      // straight at Doom rather than to whichever reach tile happens to be as few steps away
+      const score = [d, doomDist(x, y) === HAL.reach ? 0 : 1, Math.hypot(x - P.x, y - P.y)];
+      if (!bestScore || lexLess(score, bestScore)) { bestScore = score; best = [x, y]; }
     }
     if (best) setDestination(best[0], best[1], walk);
     else P.target = null;
@@ -2718,7 +2722,7 @@ if (typeof module !== 'undefined') module.exports = OsrsSynth;
     exampleReport();
     syncUI();
     if (window.claude && window.claude.hot && window.claude.hot.snapshot) window.claude.hot.snapshot(() => ({ S, ST }));
-    window.__drs = { get G() { return G; }, get S() { return S; }, set S(v) { S = v; }, get ST() { return ST; }, render, doTick, queueInput, findPath, startRep, newGame, R, V, cam, layout, camGoal, updateCam, rockState, rockScreen, sx, sy, DOOM_VIEW, YOU_VIEW, migrate, movePrayer, prayerAt, specGeom, inSpec, soundLog, SND, THROW_SOUNDS, WINDUP, synth: OsrsSynth, A, RB, CHARGE, HAL, doomDist, inReach, setMode, worldTile, playerSprite, outGain: () => OUT && OUT.gain.value, audio, chargeBarGeom, onDoom, doomHull: () => DOOM_HULL, doomHullNow: () => doomHullNow };
+    window.__drs = { get G() { return G; }, get S() { return S; }, set S(v) { S = v; }, get ST() { return ST; }, render, doTick, queueInput, findPath, startRep, newGame, R, V, cam, layout, camGoal, updateCam, rockState, rockScreen, sx, sy, DOOM_VIEW, YOU_VIEW, migrate, movePrayer, prayerAt, specGeom, inSpec, soundLog, SND, THROW_SOUNDS, WINDUP, synth: OsrsSynth, A, RB, CHARGE, HAL, doomDist, inReach, setMode, worldTile, START, playerSprite, outGain: () => OUT && OUT.gain.value, audio, chargeBarGeom, onDoom, doomHull: () => DOOM_HULL, doomHullNow: () => doomHullNow };
     requestAnimationFrame(frame);
   }
 

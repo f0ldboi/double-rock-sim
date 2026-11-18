@@ -11,8 +11,8 @@ window.addEventListener("load", () => setTimeout(() => {
   if (sc === "hover" || sc === "green") { run(6 + 5); f = 0.5; }
   else if (sc === "dip") { run(6 + 6); f = 0.25; }
   else if (sc === "barrage" || sc === "og") {
-    run(6 + 6); D.queueInput({ type: "move", x: 22, y: 1 }); run(1);
-    D.queueInput({ type: "move", x: 21, y: 4 }); run(3);
+    run(6 + 6); D.queueInput({ type: "move", x: D.START.x + 5, y: D.START.y + 4 }); run(1);
+    D.queueInput({ type: "move", x: D.START.x + 4, y: D.START.y + 1 }); run(3);
     D.queueInput({ type: "pray", style: "mage" }); run(1); f = 0.45;
   }
   else if (sc === "corner") { place(2, 21); run(6 + 2); f = 0.6; }

@@ -25,13 +25,13 @@ window.addEventListener('load', () => setTimeout(() => {
     run(3); ok(D.G.rocks.length === 2, 'A rock 2 thrown at T+3');
     run(4); ok(r() === 7, 'A at T+7');
     ok(D.G.player.prayer === null, 'A burst 1 switches prayer off');
-    ok(D.G.pendingBoulders.length === 1 && D.G.pendingBoulders[0].x === 17 && D.G.pendingBoulders[0].y === 6, 'A boulder 1 locked on the standing tile');
+    ok(D.G.pendingBoulders.length === 1 && D.G.pendingBoulders[0].x === D.START.x && D.G.pendingBoulders[0].y === D.START.y, 'A boulder 1 locked on the standing tile');
     ok(D.G.shadows.length === 1 && D.G.shadows[0].land === D.G.tick + 2, 'A shadows land 2 ticks after burst');
     const hp0 = D.G.player.hp;
     run(1); ok(D.G.boulders.size === 0, 'A nothing landed at T+8');
-    run(1); ok(r() === 9 && D.G.boulders.has('17,6'), 'A boulder 1 lands at T+9');
-    ok(D.G.player.hp < hp0 && !(D.G.player.x === 17 && D.G.player.y === 6), 'A boulder hit and shoved the player');
-    ok(Math.max(Math.abs(D.G.player.x - 17), Math.abs(D.G.player.y - 6)) === 1, 'A shove stays inside the 3x3');
+    run(1); ok(r() === 9 && D.G.boulders.has(D.START.x + ',' + D.START.y), 'A boulder 1 lands at T+9');
+    ok(D.G.player.hp < hp0 && !(D.G.player.x === D.START.x && D.G.player.y === D.START.y), 'A boulder hit and shoved the player');
+    ok(Math.max(Math.abs(D.G.player.x - D.START.x), Math.abs(D.G.player.y - D.START.y)) === 1, 'A shove stays inside the 3x3');
     const shoved = [D.G.player.x, D.G.player.y];
     run(1); ok(r() === 10, 'A at T+10');
     const s1 = D.G.rep.shadow1, s2 = D.G.shadows.find(s => s.id === 2);
@@ -61,16 +61,16 @@ window.addEventListener('load', () => setTimeout(() => {
     D.newGame(true);
     run(6); ok(D.G.rep && r() === 0, 'B rep started');
     run(6); ok(r() === 6, 'B at T+6 (dip 1)');
-    D.queueInput({ type: 'move', x: 22, y: 1 });
+    D.queueInput({ type: 'move', x: D.START.x + 5, y: D.START.y + 5 });
     run(1); ok(r() === 7, 'B at T+7');
-    ok(D.G.rep.b1.x === 17 && D.G.rep.b1.y === 6, 'B dip exit: boulder 1 lands where you stood');
-    ok(D.G.player.x === 19 && D.G.player.y === 4, 'B moved 2 tiles on the burst tick');
+    ok(D.G.rep.b1.x === D.START.x && D.G.rep.b1.y === D.START.y, 'B dip exit: boulder 1 lands where you stood');
+    ok(D.G.player.x === D.START.x + 2 && D.G.player.y === D.START.y + 2, 'B moved 2 tiles on the burst tick');
     const sh1 = D.G.rep.shadow1;
     const P = D.G.player;
     let best = null;
     for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
       const x = P.x + dx, y = P.y + dy;
-      if (x < 0 || y < 0 || x > 24 || y > 24 || sh1.has(k(x, y)) || (x === 17 && y === 6)) continue;
+      if (x < 0 || y < 0 || x > 24 || y > 24 || sh1.has(k(x, y)) || (x === D.START.x && y === D.START.y)) continue;
       let adj = 0; for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) if ((a || b) && sh1.has(k(x + a, y + b))) adj++;
       if (adj && (!best || adj > best.adj)) best = { x, y, adj };
     }
@@ -152,7 +152,7 @@ window.addEventListener('load', () => setTimeout(() => {
     ok(lostYou === 0, 'F your surroundings stay in the open view (' + lostYou + ' misses)');
     const zStart = snap(17, 6), zEast = snap(17, 12), zWest = snap(7, 12), zSouth = snap(12, 17), zNorth = snap(12, 7);
     ok(zEast <= 12.01 && zWest <= 12.01 && zSouth <= 12.01, 'F full zoom beside and below Doom (E ' + zEast.toFixed(2) + ' W ' + zWest.toFixed(2) + ' S ' + zSouth.toFixed(2) + ' tiles tall)');
-    ok(zStart < 13 && zNorth < 13, 'F still closer than the old 14 tiles north of Doom (start ' + zStart.toFixed(2) + ', N ' + zNorth.toFixed(2) + ')');
+    ok(zStart < 13 && zNorth < 13, 'F still closer than the old 14 tiles north of Doom (NE ' + zStart.toFixed(2) + ', N ' + zNorth.toFixed(2) + ')');
     out.push('INFO zoom within 4 tiles of Doom at most ' + nearWorst.toFixed(2) + ' tiles tall, anywhere at most ' + worstZ.toFixed(2));
     D.S = Object.assign({}, D.S, { camera: 'follow' });
     const zFollow = snap(2, 2);
@@ -383,6 +383,7 @@ window.addEventListener('load', () => setTimeout(() => {
     document.getElementById('overlay').hidden = true;
     D.G.running = false;
     const qRB = D.RB, qP = () => D.G.player;
+    ok(D.START.x === 12 && D.START.y > 14 && qRB.t1.x === 12 && qRB.t1.y > 14 && qRB.t2.y === qRB.t1.y && qRB.t2.x === qRB.t1.x + 5, 'R both modes start south of Doom; tile 2 is 5 east of tile 1');
     ok(D.S.mode === 'punish' && qP().x === qRB.t1.x && qP().y === qRB.t1.y, 'R the run starts on tile 1');
     const qMeta = D.A.meta.playerHalberd;
     ok(D.playerSprite() === 'playerHalberd' && !!D.A.playerHalberd && qMeta.length === 4 && qMeta[3] > 1.4 && qMeta[2] > 0.4 && qMeta[2] < 0.65, 'R you hold the crystal halberd, a taller render at the twisted bow render\'s scale: ' + qMeta.join(', '));
@@ -409,6 +410,9 @@ window.addEventListener('load', () => setTimeout(() => {
     const qBar = D.chargeBarGeom();
     ok(qBar.w >= 2.5 * D.V.TS && qBar.h >= 0.2 * D.V.TS && qBar.s >= 30 * D.V.ui, 'R the charge bar is drawn big: ' + qBar.w + ' by ' + qBar.h + ' px, about ' + (qBar.w / D.V.TS).toFixed(1) + ' tiles wide');
 
+    D.newGame(true);
+    D.queueInput({ type: 'attack' }); run(1);
+    ok(qP().dest && qP().dest.x === qRB.t1.x && D.doomDist(qP().dest.x, qP().dest.y) === 2 && qP().x === qRB.t1.x && qP().y === qRB.t1.y - 2, 'R clicking Doom from tile 1 runs straight at it, to ' + (qP().dest && qP().dest.x + ',' + qP().dest.y));
     D.newGame(true);
     D.soundLog.length = 0;
     run(6);
@@ -455,7 +459,7 @@ window.addEventListener('load', () => setTimeout(() => {
 
     D.setMode('dodge');
     D.G.running = false;
-    ok(qP().x === 17 && qP().y === 6 && !D.inSpec(qOrb.x, qOrb.y) && D.playerSprite() === 'player' && !D.onDoom(qCx, qCy), 'R back in Double rock: your old start tile, the twisted bow, no spec orb, and Doom is not a target');
+    ok(qP().x === D.START.x && qP().y === D.START.y && !D.inSpec(qOrb.x, qOrb.y) && D.playerSprite() === 'player' && !D.onDoom(qCx, qCy), 'R back in Double rock: its own start tile, the twisted bow, no spec orb, and Doom is not a target');
     run(6);
     ok(D.G.rep && D.G.rep.charge === null, 'R Double rock reps have no charge');
 
