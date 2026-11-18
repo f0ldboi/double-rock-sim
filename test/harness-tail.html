@@ -470,7 +470,8 @@ window.addEventListener('load', () => setTimeout(() => {
     D.S = Object.assign({}, D.S, { sound: true, volume: 50 });
     D.audio();
     vVol.value = '20'; vVol.dispatchEvent(new Event('input'));
-    ok(D.S.volume === 20 && vOut.textContent === '20%' && (D.outGain() === null || D.outGain() === undefined || Math.abs(D.outGain() - 0.2) < 1e-6), 'V the slider sets the volume as you drag (output gain ' + D.outGain() + ')');
+    ok(D.S.volume === 20 && vOut.textContent === '20%' && (D.outGain() === null || D.outGain() === undefined || Math.abs(D.outGain() - D.volGain(20)) < 1e-6), 'V the slider sets the volume as you drag (output gain ' + D.outGain() + ')');
+    ok(D.volGain(0) === 0 && D.volGain(5) < 0.0015 && Math.abs(D.volGain(100) - 0.501) < 0.001 && Math.abs(20 * Math.log10(D.volGain(50) / D.volGain(25)) - 13.5) < 0.01, 'V the slider works in decibels: 5% is about -57 dB, 100% is -6 dB, each quarter is 13.5 dB');
     vVol.value = '50'; vVol.dispatchEvent(new Event('input')); vVol.dispatchEvent(new Event('change'));
     ok(D.S.volume === 50 && D.soundLog[D.soundLog.length - 1].id === D.SND.pray.mage, 'V letting go plays a short game sound at the new level');
     vBox.checked = false; vBox.dispatchEvent(new Event('change'));

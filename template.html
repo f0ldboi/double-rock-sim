@@ -336,9 +336,9 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
         <h3>Double rock</h3>
         <ol class="steps">
           <li>Stand still. Doom throws two rocks, one after the other.</li>
-          <li>When rock 1 flashes white, click a tile a few steps away. Its boulder lands where you were standing.</li>
+          <li>When rock 1 starts to drop back down, click a tile a few steps away. The sim flashes the rock white at that moment. Its boulder lands where you were standing.</li>
           <li>Stay off the dark shadows. Rocks fall on them.</li>
-          <li>When rock 2 flashes white, step onto a tile where rock 1's rocks just fell. Rock 2's never fall there.</li>
+          <li>When rock 2 starts to drop (white flash; it is also the moment you hear rock 1's rocks hit the ground), step onto a tile where rock 1's rocks just fell. Rock 2's never fall there.</li>
           <li>When rock 2 bursts, turn on Protect from Magic for a blue rock, or Protect from Missiles for a green one.</li>
           <li>Switch prayers for each of the six hits. Blue rock: Magic, Missiles, Magic, Magic, Missiles, Magic. Green rock: the same with the two swapped.</li>
         </ol>
@@ -347,8 +347,8 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
         <h3>Rockblock + punish</h3>
         <ol class="steps">
           <li>You start on green tile 1, below Doom.</li>
-          <li>When rock 1 flashes white, click green tile 2.</li>
-          <li>When rock 2 flashes white, click the special attack orb, then click Doom.</li>
+          <li>When rock 1 starts to drop back down (white flash), click green tile 2.</li>
+          <li>When rock 2 starts to drop (white flash, as rock 1's rocks hit the ground), click the special attack orb, then click Doom.</li>
           <li>You run up and hit Doom with the halberd. That stops the yellow bar over its head before its beam fires.</li>
           <li>Pray the six hits, the same as in Double rock.</li>
         </ol>
@@ -426,7 +426,7 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
   const DEFAULTS = {
     v: 8, mode: 'dodge', latency: 0, color: 'random', death: false, pray: DEFAULT_PRAY,
     ui: 'auto', zoom: 12, camera: 'frame',
-    chat: true, trueTile: true, hover: true, grid: true, paths: true, field: false, queued: false, sound: true, volume: 50, metro: false,
+    chat: true, trueTile: true, hover: true, grid: true, paths: true, field: false, queued: false, sound: true, volume: 30, metro: false,
   };
   // settings saved by earlier versions: v3 brought closer zoom steps and the camera that keeps Doom in view;
   // v4 keeps only the protection prayers (where they sat in the old book);
@@ -684,7 +684,7 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
     if (G.dying) die();
     else if (G.rep && t - G.rep.start >= R.END) finishRep();
     G.dust = G.dust.filter(d => d.until > t);
-    if (S.metro) tone(1250, 0.03, 0.03);
+    if (S.metro) tone(1250, 0.03, 0.3);
     syncUI();
   }
 
@@ -1020,7 +1020,7 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
       if (!AC) {
         AC = new (window.AudioContext || window.webkitAudioContext)();
         OUT = AC.createGain();
-        OUT.gain.value = S.volume / 100;
+        OUT.gain.value = volGain(S.volume);
         OUT.connect(AC.destination);
       }
       if (AC.state === 'suspended') AC.resume();
@@ -1058,10 +1058,12 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
       src.onended = () => live.delete(src);
     } catch (e) { /* audio unavailable */ }
   }
-  // the volume slider scales everything, game sounds and the metronome, through the one output gain
+  // The volume slider scales everything, game sounds and the metronome, through the one output gain. The game's synths
+  // play at full scale, so it works in decibels: 1% to 100% runs evenly from -60 dB to -6 dB, and 0% is silent.
+  const volGain = v => (v > 0 ? Math.pow(10, (-60 + 54 * Math.min(v, 100) / 100) / 20) : 0);
   function setVolume(v) {
     S.volume = clamp(Math.round(Number(v) || 0), 0, 100);
-    if (OUT) OUT.gain.value = S.volume / 100;
+    if (OUT) OUT.gain.value = volGain(S.volume);
   }
   function throwSounds() { for (const [id, at] of THROW_SOUNDS) play(id, at); }
   function hush() {
@@ -1074,8 +1076,8 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
     try {
       const o = AC.createOscillator(), g = AC.createGain(), t0 = AC.currentTime;
       o.frequency.setValueAtTime(freq, t0);
-      // through the output gain, so at the default 50% it is as loud as it always was
-      g.gain.setValueAtTime(vol * 2, t0);
+      // through the output gain, like the game sounds
+      g.gain.setValueAtTime(vol, t0);
       g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
       o.connect(g).connect(OUT);
       o.start(t0);
@@ -1501,7 +1503,7 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
       for (let y = y0; y <= y1; y++) { const q = Math.round(sy(y)) + 0.5; ctx.moveTo(sx(x0), q); ctx.lineTo(sx(x1), q); }
       ctx.stroke();
     }
-    if (punishMode()) drawRockblockMarks();
+    if (punishMode()) { drawRockblockMarks(); drawDoomTiles(); }
 
     // landed debris: dust and pebbles that linger until the next landing
     for (const d of G.dust) {
@@ -1802,9 +1804,9 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
     shadowBlob(X, sy(BOSS.y + BOSS.s - 0.4), V.TS * 3.2, V.TS * 1.1, 0.45);
     if (ready(im)) ctx.drawImage(im, X - w / 2, Yb - h, w, h * (1 + lift * 0.03));
     else { ctx.fillStyle = '#7a1f1f'; ctx.fillRect(sx(BOSS.x), sy(BOSS.y), BOSS.s * V.TS, BOSS.s * V.TS); }
-    // Rockblock + punish: the 5x5 tiles Doom stands on, tinted a soft reddish grey over its body; a click on them attacks
-    if (punishMode()) drawDoomTiles();
   }
+  // Rockblock + punish: the 5x5 tiles Doom stands on, tinted a soft reddish grey on the floor under it, like RuneLite's
+  // true tile; a click on them attacks
   function drawDoomTiles() {
     const TS = V.TS, x0 = Math.round(sx(BOSS.x)), y0 = Math.round(sy(BOSS.y)), n = BOSS.s, size = Math.round(n * TS);
     ctx.save();
@@ -2431,7 +2433,7 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
     exampleReport();
     syncUI();
     if (window.claude && window.claude.hot && window.claude.hot.snapshot) window.claude.hot.snapshot(() => ({ S, ST }));
-    window.__drs = { get G() { return G; }, get S() { return S; }, set S(v) { S = v; }, get ST() { return ST; }, render, doTick, queueInput, findPath, startRep, newGame, R, V, cam, layout, camGoal, updateCam, rockState, rockScreen, sx, sy, DOOM_VIEW, YOU_VIEW, migrate, movePrayer, prayerAt, specGeom, inSpec, soundLog, SND, THROW_SOUNDS, WINDUP, synth: OsrsSynth, A, RB, CHARGE, HAL, doomDist, inReach, setMode, worldTile, START, playerSprite, outGain: () => OUT && OUT.gain.value, audio, chargeBarGeom, onDoom };
+    window.__drs = { get G() { return G; }, get S() { return S; }, set S(v) { S = v; }, get ST() { return ST; }, render, doTick, queueInput, findPath, startRep, newGame, R, V, cam, layout, camGoal, updateCam, rockState, rockScreen, sx, sy, DOOM_VIEW, YOU_VIEW, migrate, movePrayer, prayerAt, specGeom, inSpec, soundLog, SND, THROW_SOUNDS, WINDUP, synth: OsrsSynth, A, RB, CHARGE, HAL, doomDist, inReach, setMode, worldTile, START, playerSprite, outGain: () => OUT && OUT.gain.value, volGain, audio, chargeBarGeom, onDoom };
     requestAnimationFrame(frame);
   }
 
