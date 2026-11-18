@@ -34,7 +34,8 @@ You always run, as you would at Doom.
 - The Last rep report shows how you exited each rock, what landed on you and each barrage hit. Session stats track clean reps, your streak, and damage taken and times hit from debris, boulders and the barrage.
 - The game's own sound effects, played on the same ticks as in game, so you can learn the double rock by ear. See [Sound cues](#sound-cues).
 - A tick ruler, a tick log, pausing and single-tick stepping.
-- Tile markers, hints, camera, zoom and sound are all in Settings. Settings and stats are saved in your browser.
+- Sound on or off and the volume sit at the right end of the control row under the game view.
+- Tile markers, hints, camera and zoom are in Settings. Settings and stats are saved in your browser.
 
 ## Timings
 
@@ -59,14 +60,14 @@ These timings come from the [OSRS Wiki](https://oldschool.runescape.wiki/w/Doom_
 
 ## Rockblock + punish
 
-This mode drills the OSRS Wiki's [Double Rockblock](https://oldschool.runescape.wiki/w/Doom_of_Mokhaiotl/Strategies#Double_Rockblock) from the east side, together with the [melee punish](https://oldschool.runescape.wiki/w/Doom_of_Mokhaiotl/Strategies#Melee_punish) of Doom's melee charge. Every rep starts on tile 1, and you go back there before the next one.
+You hold a crystal halberd in this mode. It drills the OSRS Wiki's [Double Rockblock](https://oldschool.runescape.wiki/w/Doom_of_Mokhaiotl/Strategies#Double_Rockblock) from the east side, together with the [melee punish](https://oldschool.runescape.wiki/w/Doom_of_Mokhaiotl/Strategies#Melee_punish) of Doom's melee charge. Every rep starts on tile 1, and you go back there before the next one.
 
 1. Stand on tile 1, the green tile 10 tiles east of Doom's centre.
 2. When rock 1 dips (T+6), click tile 2, 5 tiles north. Boulder 1 lands on tile 1.
 3. When rock 2 dips (T+9), turn on the special attack and click Doom. Boulder 2 lands on tile 2, and you run to the halberd's reach (the dashed line, 2 tiles from Doom) and hit.
 4. Pray the barrage as usual on the way.
 
-On rock 2's throw (T+3), Doom prays against magic and ranged, and a yellow charge bar fills over its head. Only a melee hit stops the charge. Running in after dip 2 lands the punish on T+12. If no melee hit lands by T+15, the beam fires on T+16 for 99.
+On rock 2's throw (T+3), Doom prays against magic and ranged, and a yellow charge bar fills over its head, drawn bigger than in game. Only a melee hit stops the charge. A soft outline around Doom, like RuneLite's NPC hull highlight, marks where a click attacks it. Running in after dip 2 lands the punish on T+12. If no melee hit lands by T+15, the beam fires on T+16 for 99.
 
 A rep is clean when both boulders are on their tiles, you punished with the special, and you took no damage. The crystal halberd reaches 2 tiles and attacks every 7 ticks. Its special, Sweep, costs 30% energy and hits Doom twice. Each hitsplat on the charge adds the punish bonus, 23 in the wiki's example gear.
 
@@ -119,7 +120,7 @@ The first command builds the bare page. The second wraps it as a complete web pa
 bash tools/run_tests.sh
 ```
 
-This builds the page, appends `test/harness-tail.html` and runs it in headless Chrome. The harness steps the sim tick by tick and runs 139 checks covering timings, damage, prayers, sounds, the rock flights, Rockblock + punish, the camera, saved settings and the page panels. If Chrome isn't at its usual Windows path, set `CHROME` to its location. Set `PYTHON` to choose the interpreter.
+This builds the page, appends `test/harness-tail.html` and runs it in headless Chrome. The harness steps the sim tick by tick and runs 147 checks covering timings, damage, prayers, sounds, the rock flights, Rockblock + punish, the camera, saved settings and the page panels. If Chrome isn't at its usual Windows path, set `CHROME` to its location. Set `PYTHON` to choose the interpreter.
 
 `test/shot-tail.html` freezes a scenario for screenshots. Append it to the built page and open the result with a hash such as `#barrage`.
 

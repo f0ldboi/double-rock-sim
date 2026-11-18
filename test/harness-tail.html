@@ -384,6 +384,8 @@ window.addEventListener('load', () => setTimeout(() => {
     D.G.running = false;
     const qRB = D.RB, qP = () => D.G.player;
     ok(D.S.mode === 'punish' && qP().x === qRB.t1.x && qP().y === qRB.t1.y, 'R the run starts on tile 1');
+    const qMeta = D.A.meta.playerHalberd;
+    ok(D.playerSprite() === 'playerHalberd' && !!D.A.playerHalberd && qMeta.length === 4 && qMeta[3] > 1.4 && qMeta[2] > 0.4 && qMeta[2] < 0.65, 'R you hold the crystal halberd, a taller render at the twisted bow render\'s scale: ' + qMeta.join(', '));
     ok(document.getElementById('mode-punish').getAttribute('aria-pressed') === 'true' && document.getElementById('ruler').textContent.includes('click tile 2') && document.getElementById('ruler').textContent.includes('beam fires'), 'R the mode button and the tick ruler switch to the punish steps');
     D.layout();
     const qOrb = D.specGeom();
@@ -397,6 +399,15 @@ window.addEventListener('load', () => setTimeout(() => {
     D.queueInput({ type: 'spec' }); run(1);
     ok(!qP().spec && document.getElementById('log').firstElementChild.textContent.includes('not have enough special attack energy'), 'R under 30% energy the special will not arm');
     ok(D.doomDist(16, 8) === 2 && D.inReach(16, 8) && D.inReach(15, 9) && !D.inReach(17, 8) && !D.inReach(12, 12), 'R the halberd reaches 2 tiles from Doom');
+    // Doom's hull: drawn in this mode, and a click anywhere in it attacks, horns included
+    D.render(performance.now());
+    const qHull = D.doomHullNow(), qCx = qHull ? qHull.reduce((a, p) => a + p[0], 0) / qHull.length : 0, qCy = qHull ? qHull.reduce((a, p) => a + p[1], 0) / qHull.length : 0;
+    const qLeft = qHull ? qHull.reduce((a, p) => (p[0] < a[0] ? p : a)) : [0, 0];
+    const qHorn = [qLeft[0] + (qCx - qLeft[0]) * 0.08, qLeft[1] + (qCy - qLeft[1]) * 0.08];
+    const qHornTile = D.worldTile(qHorn[0], qHorn[1]);
+    ok(!!D.doomHull() && D.doomHull().length >= 6 && D.onDoom(qCx, qCy) && D.onDoom(qHorn[0], qHorn[1]) && !(qHornTile[0] >= 10 && qHornTile[0] < 15 && qHornTile[1] >= 10 && qHornTile[1] < 15) && !D.onDoom(D.sx(20.5), D.sy(6.5)), 'R Doom\'s hull (' + (D.doomHull() || []).length + ' points) is its click area, horns past its tiles included');
+    const qBar = D.chargeBarGeom();
+    ok(qBar.w >= 2.5 * D.V.TS && qBar.h >= 0.2 * D.V.TS && qBar.s >= 30 * D.V.ui, 'R the charge bar is drawn big: ' + qBar.w + ' by ' + qBar.h + ' px, about ' + (qBar.w / D.V.TS).toFixed(1) + ' tiles wide');
 
     D.newGame(true);
     D.soundLog.length = 0;
@@ -444,9 +455,23 @@ window.addEventListener('load', () => setTimeout(() => {
 
     D.setMode('dodge');
     D.G.running = false;
-    ok(qP().x === 17 && qP().y === 6 && !D.inSpec(qOrb.x, qOrb.y), 'R back in Double rock: your old start tile, no spec orb');
+    ok(qP().x === 17 && qP().y === 6 && !D.inSpec(qOrb.x, qOrb.y) && D.playerSprite() === 'player' && !D.onDoom(qCx, qCy), 'R back in Double rock: your old start tile, the twisted bow, no spec orb, and Doom is not a target');
     run(6);
     ok(D.G.rep && D.G.rep.charge === null, 'R Double rock reps have no charge');
+
+    // V: sound on or off and the volume, on the control row under the game view
+    const vBox = document.getElementById('bar-sound'), vSet = document.getElementById('set-sound'), vVol = document.getElementById('set-volume'), vOut = document.getElementById('set-volume-out');
+    ok(!!vBox && !!vVol && vBox.closest('.bar') && vVol.closest('.bar') && vOut.textContent === D.S.volume + '%', 'V the control row has a Sound checkbox and a volume slider: ' + vOut.textContent);
+    D.S = Object.assign({}, D.S, { sound: true, volume: 50 });
+    D.audio();
+    vVol.value = '20'; vVol.dispatchEvent(new Event('input'));
+    ok(D.S.volume === 20 && vOut.textContent === '20%' && (D.outGain() === null || D.outGain() === undefined || Math.abs(D.outGain() - 0.2) < 1e-6), 'V the slider sets the volume as you drag (output gain ' + D.outGain() + ')');
+    vVol.value = '50'; vVol.dispatchEvent(new Event('input')); vVol.dispatchEvent(new Event('change'));
+    ok(D.S.volume === 50 && D.soundLog[D.soundLog.length - 1].id === D.SND.pray.mage, 'V letting go plays a short game sound at the new level');
+    vBox.checked = false; vBox.dispatchEvent(new Event('change'));
+    ok(!D.S.sound && !vSet.checked && document.querySelector('.sound-ctl').classList.contains('off'), 'V unticking Sound turns the sound effects off, here and in Settings');
+    vSet.checked = true; vSet.dispatchEvent(new Event('change'));
+    ok(D.S.sound && vBox.checked && !document.querySelector('.sound-ctl').classList.contains('off'), 'V ticking Sound effects in Settings turns them back on, here too');
 
     // M: dying in Real hitpoints: the rep counts, the report says Dead, and the death window offers a fresh run
     D.S = Object.assign({}, D.S, { death: true, color: 'mage' });

@@ -92,6 +92,10 @@ h1,h2,h3{text-wrap:balance}
 .btn.go{background:#5b4410;color:var(--yellow)}
 .btn.edit[aria-pressed="true"],.btn.mode[aria-pressed="true"]{background:#5b4410;color:var(--yellow)}
 .window:not(.punish) .is-punish{display:none}
+.sound-ctl{margin-left:auto;display:flex;align-items:center;gap:10px}
+.sound-ctl input[type=range]{width:120px;margin:0;accent-color:var(--orange)}
+.sound-ctl output{min-width:4ch;font:600 12px/1 var(--font-mono);color:var(--text);text-align:right;font-variant-numeric:tabular-nums}
+.sound-ctl.off input[type=range],.sound-ctl.off output{opacity:.45}
 
 .panel{background:var(--iface);box-shadow:var(--bevel);padding:12px 14px;display:flex;flex-direction:column;gap:10px;min-width:0}
 .panel h2{margin:0;font-family:var(--font-display);font-size:var(--fs-sm);letter-spacing:.06em;text-transform:uppercase;color:var(--orange);text-shadow:1px 1px 0 #000}
@@ -224,6 +228,11 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
     <div class="controls" role="group" aria-label="Prayer layout">
       <button class="btn edit" id="btn-edit" type="button" aria-pressed="false">Arrange prayers</button>
       <button class="btn" id="btn-reset-layout" type="button" hidden>Reset layout</button>
+    </div>
+    <div class="sound-ctl" role="group" aria-label="Sound">
+      <label class="tg"><input type="checkbox" id="bar-sound"><span>Sound</span></label>
+      <input type="range" id="set-volume" min="0" max="100" step="5" aria-label="Volume">
+      <output id="set-volume-out" for="set-volume">50%</output>
     </div>
   </div>
 
@@ -383,7 +392,7 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
   const DEFAULTS = {
     v: 8, mode: 'dodge', latency: 0, color: 'random', death: false, pray: DEFAULT_PRAY,
     ui: 'auto', zoom: 12, camera: 'frame',
-    chat: true, trueTile: true, hover: true, grid: true, paths: true, field: false, queued: false, sound: true, metro: false,
+    chat: true, trueTile: true, hover: true, grid: true, paths: true, field: false, queued: false, sound: true, volume: 50, metro: false,
   };
   // settings saved by earlier versions: v3 brought closer zoom steps and the camera that keeps Doom in view;
   // v4 keeps only the protection prayers (where they sat in the old book);
@@ -975,7 +984,7 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
       if (!AC) {
         AC = new (window.AudioContext || window.webkitAudioContext)();
         OUT = AC.createGain();
-        OUT.gain.value = 0.5;
+        OUT.gain.value = S.volume / 100;
         OUT.connect(AC.destination);
       }
       if (AC.state === 'suspended') AC.resume();
@@ -1013,6 +1022,11 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
       src.onended = () => live.delete(src);
     } catch (e) { /* audio unavailable */ }
   }
+  // the volume slider scales everything, game sounds and the metronome, through the one output gain
+  function setVolume(v) {
+    S.volume = clamp(Math.round(Number(v) || 0), 0, 100);
+    if (OUT) OUT.gain.value = S.volume / 100;
+  }
   function throwSounds() { for (const [id, at] of THROW_SOUNDS) play(id, at); }
   function hush() {
     for (const s of live) try { s.stop(); } catch (e) { /* already stopped */ }
@@ -1024,9 +1038,10 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
     try {
       const o = AC.createOscillator(), g = AC.createGain(), t0 = AC.currentTime;
       o.frequency.setValueAtTime(freq, t0);
-      g.gain.setValueAtTime(vol, t0);
+      // through the output gain, so at the default 50% it is as loud as it always was
+      g.gain.setValueAtTime(vol * 2, t0);
       g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-      o.connect(g).connect(AC.destination);
+      o.connect(g).connect(OUT);
       o.start(t0);
       o.stop(t0 + dur + 0.02);
     } catch (e) { /* audio unavailable */ }
@@ -1704,22 +1719,36 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
       ctx.fillStyle = '#ffffff'; ctx.fillText(label, x + TS / 2, y + TS / 2);
     }
   }
+  // where the charge bar and its overhead go: over Doom's head, about 2.8 tiles wide
+  function chargeBarGeom() {
+    const ui = V.ui, TS = V.TS, im = IMG.doom;
+    const w = TS * 6.6, h = ready(im) ? w * im.naturalHeight / im.naturalWidth : w * 0.7;
+    const top = sy(BOSS.y + BOSS.s + 0.25) - h;
+    const bw = Math.round(Math.max(120 * ui, TS * 2.8)), bh = Math.round(Math.max(9 * ui, TS * 0.22)), s = Math.round(32 * ui);
+    return { x: Math.round(sx(BOSS_C[0]) - bw / 2), y: Math.round(Math.max(V.ry0 + s + 10 * ui, top + 4 * ui)), w: bw, h: bh, s };
+  }
   // Doom's melee charge as the game shows it: the Protect from Magic and Missiles overhead, and the yellow charge bar
   // filling over its dark track; plus the hitsplats you put on it
   function drawDoomCharge(ct, now) {
-    const ui = V.ui, TS = V.TS, rep = G.rep;
-    const im = IMG.doom, w = TS * 6.6, h = ready(im) ? w * im.naturalHeight / im.naturalWidth : w * 0.7;
-    const X = sx(BOSS_C[0]), top = sy(BOSS.y + BOSS.s + 0.25) - h;
+    const ui = V.ui, TS = V.TS, rep = G.rep, X = sx(BOSS_C[0]);
     ctx.imageSmoothingEnabled = false;
     if (rep && rep.charge && rep.charge.on) {
       const u = clamp((ct - rep.start - CHARGE.start) / (CHARGE.fire - CHARGE.start), 0, 1);
-      const bw = Math.round(60 * ui), bh = Math.max(3, Math.round(5 * ui)), s = Math.round(25 * ui);
-      const by = Math.round(Math.max(V.ry0 + s + 6 * ui, top + 10 * ui)), bx = Math.round(X - bw / 2);
-      ctx.fillStyle = '#000'; ctx.fillRect(bx - 1, by - 1, bw + 2, bh + 2);
-      ctx.fillStyle = '#302a00'; ctx.fillRect(bx, by, bw, bh);
-      ctx.fillStyle = '#d8dc1c'; ctx.fillRect(bx, by, Math.round(bw * u), bh);
+      const b = chargeBarGeom(), fw = Math.round(b.w * u);
+      // the game's colours, drawn bigger on a dark backing so the bar reads at a glance over Doom's horns
+      ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(b.x - 4, b.y - 4, b.w + 8, b.h + 8);
+      ctx.fillStyle = '#000'; ctx.fillRect(b.x - 1, b.y - 1, b.w + 2, b.h + 2);
+      ctx.fillStyle = '#302a00'; ctx.fillRect(b.x, b.y, b.w, b.h);
+      ctx.fillStyle = '#d8dc1c'; ctx.fillRect(b.x, b.y, fw, b.h);
+      ctx.fillStyle = 'rgba(255,255,255,0.35)'; ctx.fillRect(b.x, b.y, fw, Math.max(1, Math.round(b.h * 0.25)));
+      // nearly full: the frame pulses red
+      if (u > 0.7) {
+        const p = 0.5 + 0.5 * Math.sin(now / 90);
+        ctx.strokeStyle = `rgba(255,60,30,${(0.45 + 0.5 * p).toFixed(3)})`; ctx.lineWidth = Math.max(2, 2 * ui);
+        ctx.strokeRect(b.x - 2.5, b.y - 2.5, b.w + 5, b.h + 5);
+      }
       const ov = IMG['Protect from Magic and Missiles overhead'];
-      if (ready(ov)) ctx.drawImage(ov, Math.round(X - s / 2), by - s - Math.round(3 * ui), s, s);
+      if (ready(ov)) ctx.drawImage(ov, Math.round(X - b.s / 2), b.y - b.s - Math.round(6 * ui), b.s, b.s);
     }
     G.bossSplats = G.bossSplats.filter(s => now - s.t0 < 1200);
     const OFF = [[0, 0], [0, -20], [-14, 10], [14, 10]];
@@ -1744,11 +1773,58 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
     shadowBlob(X, sy(BOSS.y + BOSS.s - 0.4), V.TS * 3.2, V.TS * 1.1, 0.45);
     if (ready(im)) ctx.drawImage(im, X - w / 2, Yb - h, w, h * (1 + lift * 0.03));
     else { ctx.fillStyle = '#7a1f1f'; ctx.fillRect(sx(BOSS.x), sy(BOSS.y), BOSS.s * V.TS, BOSS.s * V.TS); }
+    // its hull on screen this frame: in Rockblock + punish it is drawn, softer than RuneLite's, and a click in it attacks
+    doomHullNow = DOOM_HULL ? DOOM_HULL.map(([u, v]) => [X - w / 2 + u * w, Yb - h + v * h * (1 + lift * 0.03)]) : null;
+    if (punishMode() && doomHullNow) {
+      ctx.save();
+      ctx.beginPath();
+      doomHullNow.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+      ctx.closePath();
+      ctx.fillStyle = 'rgba(0,255,255,0.06)'; ctx.fill();
+      ctx.shadowColor = 'rgba(0,255,255,0.55)'; ctx.shadowBlur = 8;
+      ctx.lineJoin = 'round'; ctx.lineWidth = Math.max(1.5, V.TS * 0.05); ctx.strokeStyle = 'rgba(0,255,255,0.45)';
+      ctx.stroke();
+      ctx.restore();
+    }
   }
+  // Doom's hull, like RuneLite's NPC Indicators draw one: the convex outline of its sprite, found once from the image's
+  // opaque pixels and kept in shares of the image's width and height
+  let DOOM_HULL = null, doomHullNow = null;
+  function buildDoomHull(im) {
+    const w = 190, h = Math.round(w * im.naturalHeight / im.naturalWidth), c = mk(w, h), g = c.getContext('2d');
+    g.drawImage(im, 0, 0, w, h);
+    const a = g.getImageData(0, 0, w, h).data, pts = [];
+    for (let y = 0; y < h; y++) {
+      let x0 = -1, x1 = -1;
+      for (let x = 0; x < w; x++) if (a[(y * w + x) * 4 + 3] > 60) { if (x0 < 0) x0 = x; x1 = x; }
+      if (x0 >= 0) pts.push([x0 / w, y / h], [(x1 + 1) / w, y / h], [x0 / w, (y + 1) / h], [(x1 + 1) / w, (y + 1) / h]);
+    }
+    pts.sort((p, q) => p[0] - q[0] || p[1] - q[1]);
+    const cross = (o, p, q) => (p[0] - o[0]) * (q[1] - o[1]) - (p[1] - o[1]) * (q[0] - o[0]);
+    const half = list => {
+      const out = [];
+      for (const p of list) { while (out.length >= 2 && cross(out[out.length - 2], out[out.length - 1], p) <= 0) out.pop(); out.push(p); }
+      return out.slice(0, -1);
+    };
+    DOOM_HULL = half(pts).concat(half(pts.slice().reverse()));
+  }
+  function inPoly(poly, x, y) {
+    let inside = false;
+    for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+      const [xi, yi] = poly[i], [xj, yj] = poly[j];
+      if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) inside = !inside;
+    }
+    return inside;
+  }
+  // in Rockblock + punish, a click on Doom's hull or its tiles attacks it
+  const onDoom = (mx, my) => punishMode() && ((!!doomHullNow && inPoly(doomHullNow, mx, my)) || isBoss(...worldTile(mx, my)));
+  // Double rock: the twisted bow. Rockblock + punish: the crystal halberd, a taller render (the halberd stands over your
+  // head) drawn at the same scale, so you stay the same size.
+  const playerSprite = () => punishMode() && A.playerHalberd ? 'playerHalberd' : 'player';
   function drawPlayer(pp) {
-    const im = IMG.player, meta = A.meta.player;
+    const key = playerSprite(), im = IMG[key], meta = A.meta[key];
     const TS = V.TS;
-    const h = TS * 2.1, w = h * meta[0] / meta[1];
+    const h = TS * 2.1 * (meta[3] || 1), w = h * meta[0] / meta[1];
     const fx = sx(pp[0] + 0.5), fy = sy(pp[1] + 0.9);
     shadowBlob(fx, fy - TS * 0.05, TS * 0.42, TS * 0.16, 0.5);
     const faceRight = G.player.face !== 0 ? G.player.face > 0 : true;
@@ -1759,7 +1835,7 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
     if (G.dead) ctx.rotate(-Math.PI / 2 * clamp((performance.now() - G.deadAt) / 380, 0, 1));
     if (G.player.stun > 0) ctx.globalAlpha = 0.85;
     if (ready(im)) ctx.drawImage(im, -w * meta[2], -h, w, h);
-    else { ctx.fillStyle = '#e6dcc6'; ctx.fillRect(-TS * 0.25, -h * 0.8, TS * 0.5, h * 0.8); }
+    else { ctx.fillStyle = '#e6dcc6'; ctx.fillRect(-TS * 0.25, -TS * 1.7, TS * 0.5, TS * 1.7); }
     ctx.restore();
   }
   function drawOverheads(pp, now) {
@@ -1833,7 +1909,7 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
       else parts = [[G.player.prayer === st ? 'Deactivate ' : 'Activate ', '#ffffff'], [PRAY_NAME[st], '#ff9040']];
     } else if (inSpec(mx, my)) parts = [['Use ', '#ffffff'], ['Special Attack', '#ff9040']];
     else if (G.editing) return;
-    else if (punishMode() && isBoss(...worldTile(mx, my))) parts = [['Attack ', '#ffffff'], ['Doom of Mokhaiotl', '#ffff00']];
+    else if (onDoom(mx, my)) parts = [['Attack ', '#ffffff'], ['Doom of Mokhaiotl', '#ffff00']];
     else parts = [['Walk here', '#ffffff']];
     const ui = V.ui;
     ctx.font = `700 ${Math.round(13 * ui)}px Barlow, Arial, sans-serif`;
@@ -2018,6 +2094,9 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
     $('#btn-edit').setAttribute('aria-pressed', String(G.editing));
     $('#btn-edit').textContent = G.editing ? 'Done' : 'Arrange prayers';
     $('#btn-reset-layout').hidden = !G.editing;
+    $('#bar-sound').checked = $('#set-sound').checked = !!S.sound;
+    $('#set-volume-out').textContent = S.volume + '%';
+    $('.sound-ctl').classList.toggle('off', !S.sound);
     $('#mode-dodge').setAttribute('aria-pressed', String(!punishMode()));
     $('#mode-punish').setAttribute('aria-pressed', String(punishMode()));
     $('#paused').hidden = !G.editing && !(G.started && !G.running && !G.dead);
@@ -2242,7 +2321,7 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
       if (inSpec(mx, my)) { e.preventDefault(); if (G.started && !G.dead) queueInput({ type: 'spec' }); return; }
       if (!G.started || G.dead) return;
       const [tx, ty] = worldTile(mx, my), walk = e.ctrlKey || e.metaKey;
-      const attack = punishMode() && isBoss(tx, ty);
+      const attack = onDoom(mx, my);
       G.clickMark = { x: mx, y: my, t0: performance.now(), red: attack };
       queueInput(attack ? { type: 'attack', walk } : { type: 'move', x: tx, y: ty, walk });
     });
@@ -2307,7 +2386,14 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
     chk('#set-truetile', 'trueTile'); chk('#set-hover', 'hover'); chk('#set-grid', 'grid'); chk('#set-field', 'field');
     chk('#set-paths', 'paths'); chk('#set-queued', 'queued'); chk('#set-chat', 'chat');
     chk('#set-sound', 'sound'); chk('#set-metro', 'metro');
-    $('#set-sound').addEventListener('change', () => { if (S.sound) warmAudio(); else hush(); });
+    // Sound on the control row and Sound effects in Settings are the same setting
+    chk('#bar-sound', 'sound');
+    for (const id of ['#set-sound', '#bar-sound']) $(id).addEventListener('change', () => { if (S.sound) warmAudio(); else hush(); });
+    const vol = $('#set-volume');
+    vol.value = String(S.volume);
+    vol.addEventListener('input', () => { setVolume(vol.value); syncUI(); });
+    // on release, save and play a short game sound at the new level
+    vol.addEventListener('change', () => { setVolume(vol.value); save(); if (S.sound && S.volume > 0) play(SND.pray.mage); });
     $('#ov-ico-spec').src = A.icons['Special attack orb'];
     document.documentElement.style.setProperty('--hs-red', `url("${A.icons['Damage hitsplat']}")`);
     document.documentElement.style.setProperty('--hs-blue', `url("${A.icons['Zero damage hitsplat']}")`);
@@ -2323,10 +2409,14 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
     ST.dmg = { ...freshStats().dmg, ...(ST.dmg || {}) };
     ST.hitBy = { ...freshStats().hitBy, ...(ST.hitBy || {}) };
     S.pray = validPray(S.pray) ? { ...S.pray } : { ...DEFAULT_PRAY };
+    if (!(S.volume >= 0 && S.volume <= 100)) S.volume = DEFAULTS.volume;
     for (const [n, src] of Object.entries(A.icons)) loadImg(n, src);
     loadImg('doom', A.doom);
     loadImg('player', A.player);
+    if (A.playerHalberd) loadImg('playerHalberd', A.playerHalberd);
     IMG['Prayer icon'].addEventListener('load', () => { if (PANEL) buildPanel(PANEL.ui, PANEL.dpr); });
+    const doomIm = IMG.doom, hull = () => { try { buildDoomHull(doomIm); } catch (e) { /* no hull, the tiles still work */ } };
+    if (ready(doomIm)) hull(); else doomIm.addEventListener('load', hull);
     buildSprites();
     buildFloor();
     newGame(false);
@@ -2337,7 +2427,7 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
     exampleReport();
     syncUI();
     if (window.claude && window.claude.hot && window.claude.hot.snapshot) window.claude.hot.snapshot(() => ({ S, ST }));
-    window.__drs = { get G() { return G; }, get S() { return S; }, set S(v) { S = v; }, get ST() { return ST; }, render, doTick, queueInput, findPath, startRep, newGame, R, V, cam, layout, camGoal, updateCam, rockState, rockScreen, sx, sy, DOOM_VIEW, YOU_VIEW, migrate, movePrayer, prayerAt, specGeom, inSpec, soundLog, SND, THROW_SOUNDS, WINDUP, synth: OsrsSynth, A, RB, CHARGE, HAL, doomDist, inReach, setMode, worldTile };
+    window.__drs = { get G() { return G; }, get S() { return S; }, set S(v) { S = v; }, get ST() { return ST; }, render, doTick, queueInput, findPath, startRep, newGame, R, V, cam, layout, camGoal, updateCam, rockState, rockScreen, sx, sy, DOOM_VIEW, YOU_VIEW, migrate, movePrayer, prayerAt, specGeom, inSpec, soundLog, SND, THROW_SOUNDS, WINDUP, synth: OsrsSynth, A, RB, CHARGE, HAL, doomDist, inReach, setMode, worldTile, playerSprite, outGain: () => OUT && OUT.gain.value, audio, chargeBarGeom, onDoom, doomHull: () => DOOM_HULL, doomHullNow: () => doomHullNow };
     requestAnimationFrame(frame);
   }
 

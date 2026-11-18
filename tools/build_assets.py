@@ -63,6 +63,7 @@ out['meta']['doom'] = [doom.shape[1], doom.shape[0]]
 
 player = crop_alpha(cv2.imread(os.path.join(SRC, 'player_Twisted_bow_equipped_male.png'), cv2.IMREAD_UNCHANGED))
 ph = 300
+scale = ph / player.shape[0]
 player = cv2.resize(player, (round(player.shape[1] * ph / player.shape[0]), ph), interpolation=cv2.INTER_AREA)
 a = player[:, :, 3]
 rows = a[int(ph * 0.94):]
@@ -70,6 +71,18 @@ feet = np.nonzero(rows.max(axis=0) > 20)[0]
 out['player'] = uri(player, '.webp', [cv2.IMWRITE_WEBP_QUALITY, 90])
 out['meta']['player'] = [player.shape[1], player.shape[0], round(float((feet.min() + feet.max()) / 2 / player.shape[1]), 3)]
 
+# Rockblock + punish: you hold the crystal halberd. The wiki renders share one scale, so this one is sized exactly as the
+# twisted bow render was, and its last meta value is its height relative to that render. The halberd's butt also
+# reaches the ground, so the anchor sits between the two shoes, found by colour.
+hal = crop_alpha(cv2.imread(os.path.join(SRC, 'player_Crystal_halberd_equipped_male.png'), cv2.IMREAD_UNCHANGED))
+b, g, r, al = (hal[int(hal.shape[0] * 0.93):, :, i].astype(int) for i in range(4))
+cols = np.nonzero(((al > 20) & (r > g + 18) & (r > b + 35)).sum(axis=0) > 2)[0]
+shoes = [c for c in np.split(cols, np.nonzero(np.diff(cols) > 3)[0] + 1) if c[-1] - c[0] > 30]
+cx = sum((c[0] + c[-1]) / 2 for c in shoes) / len(shoes)
+hw, hh = round(hal.shape[1] * scale), round(hal.shape[0] * scale)
+out['playerHalberd'] = uri(cv2.resize(hal, (hw, hh), interpolation=cv2.INTER_AREA), '.webp', [cv2.IMWRITE_WEBP_QUALITY, 90])
+out['meta']['playerHalberd'] = [hw, hh, round(float(cx / hal.shape[1]), 3), round(hh / ph, 3)]
+
 json.dump(out, open(OUT, 'w'))
-total = sum(len(v) for v in out['icons'].values()) + len(out['doom']) + len(out['player'])
+total = sum(len(v) for v in out['icons'].values()) + len(out['doom']) + len(out['player']) + len(out['playerHalberd'])
 print('icons', len(out['icons']), 'doom', out['meta']['doom'], len(out['doom']), 'player', out['meta']['player'], len(out['player']), 'total chars', total)
