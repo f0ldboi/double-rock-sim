@@ -157,6 +157,13 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
 .tgroup legend{padding:0;margin-bottom:4px;font-size:var(--fs-xs);letter-spacing:.05em;text-transform:uppercase;color:var(--dim)}
 .tg{display:flex;align-items:flex-start;gap:7px;font-size:var(--fs-sm);cursor:pointer;line-height:1.3}
 .tg input{accent-color:var(--orange);width:15px;height:15px;margin:1px 0 0;flex:none}
+.tind{gap:8px}
+.tind-grid{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr) minmax(0,1fr) 4.2em;align-items:center;gap:7px 10px}
+.tind-h{font-size:var(--fs-xs);letter-spacing:.05em;text-transform:uppercase;color:var(--dim)}
+.argb{display:flex;align-items:center;gap:6px;min-width:0}
+.argb .sw{flex:none;width:16px;height:16px;box-shadow:inset 0 0 0 1px #000;background:linear-gradient(var(--c,transparent),var(--c,transparent)),repeating-conic-gradient(#8a8a8a 0 25%,#d4d4d4 0 50%) 0 0/8px 8px}
+.tind input[type=text],.tind input[type=number]{width:100%;min-width:0;background:var(--iface-lo);box-shadow:var(--bevel);border:0;border-radius:0;color:var(--text);font:600 12px/1.2 var(--font-mono);padding:5px 6px}
+.tind-note{margin:0;font-size:var(--fs-xs);color:var(--dim);max-width:62ch}
 .log{list-style:none;margin:0;padding:0;max-height:430px;overflow-y:auto;font:400 12px/1.45 var(--font-mono);display:flex;flex-direction:column;gap:1px}
 .log li{display:grid;grid-template-columns:4.6ch 1fr;gap:8px;padding:2px 0;border-bottom:1px solid rgba(0,0,0,.3)}
 .log .lt{color:var(--orange)}
@@ -301,8 +308,6 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
         <div class="col">
           <fieldset class="tgroup">
             <legend>Tile markers</legend>
-            <label class="tg"><input type="checkbox" id="set-truetile" checked><span>True tile</span></label>
-            <label class="tg"><input type="checkbox" id="set-hover" checked><span>Hovered tile</span></label>
             <label class="tg"><input type="checkbox" id="set-grid" checked><span>Tile grid</span></label>
             <label class="tg"><input type="checkbox" id="set-field"><span>9×9 debris field outline</span></label>
           </fieldset>
@@ -321,6 +326,27 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
           </fieldset>
         </div>
       </div>
+      <div class="sep"></div>
+      <fieldset class="tgroup tind">
+        <legend>Tile indicators, as in RuneLite</legend>
+        <div class="tind-grid">
+          <span></span><span class="tind-h">Highlight</span><span class="tind-h">Fill</span><span class="tind-h">Border</span>
+          <label class="tg"><input type="checkbox" id="ti-dest-on"><span>Destination tile</span></label>
+          <span class="argb"><i class="sw"></i><input type="text" id="ti-dest-line" maxlength="9" spellcheck="false" autocomplete="off" aria-label="Destination tile highlight colour"></span>
+          <span class="argb"><i class="sw"></i><input type="text" id="ti-dest-fill" maxlength="9" spellcheck="false" autocomplete="off" aria-label="Destination tile fill colour"></span>
+          <input type="number" id="ti-dest-w" min="0" max="5" step="0.1" aria-label="Destination tile border width">
+          <label class="tg"><input type="checkbox" id="ti-hover-on"><span>Hovered tile</span></label>
+          <span class="argb"><i class="sw"></i><input type="text" id="ti-hover-line" maxlength="9" spellcheck="false" autocomplete="off" aria-label="Hovered tile highlight colour"></span>
+          <span class="argb"><i class="sw"></i><input type="text" id="ti-hover-fill" maxlength="9" spellcheck="false" autocomplete="off" aria-label="Hovered tile fill colour"></span>
+          <input type="number" id="ti-hover-w" min="0" max="5" step="0.1" aria-label="Hovered tile border width">
+          <label class="tg"><input type="checkbox" id="ti-cur-on"><span>Current tile</span></label>
+          <span class="argb"><i class="sw"></i><input type="text" id="ti-cur-line" maxlength="9" spellcheck="false" autocomplete="off" aria-label="Current tile highlight colour"></span>
+          <span class="argb"><i class="sw"></i><input type="text" id="ti-cur-fill" maxlength="9" spellcheck="false" autocomplete="off" aria-label="Current tile fill colour"></span>
+          <input type="number" id="ti-cur-w" min="0" max="5" step="0.1" aria-label="Current tile border width">
+        </div>
+        <p class="tind-note">Colours are RuneLite's #AARRGGBB: the first two digits are the opacity, so 00 is see-through and FF is solid.</p>
+        <div><button class="btn" id="ti-reset" type="button">Reset tile indicators</button></div>
+      </fieldset>
     </section>
 
     <section class="panel" aria-labelledby="log-h">
@@ -425,15 +451,22 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
   const mixc = (a, b, t) => [lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2], b[2], t)];
 
   /* ================= settings and stats ================= */
+  // RuneLite's Tile Indicators, set as Nico has them: colours are #AARRGGBB, border widths in pixels
+  const TI_DEFAULTS = {
+    dest: { on: true, line: '#FF808080', fill: '#19CDCDCD', w: 0.8 },
+    hover: { on: true, line: '#5A494837', fill: '#00000000', w: 0.8 },
+    cur: { on: true, line: '#FF00FFFF', fill: '#0F000000', w: 0.8 },
+  };
+  const tiCopy = () => JSON.parse(JSON.stringify(TI_DEFAULTS));
   const DEFAULTS = {
-    v: 8, mode: 'dodge', latency: 0, color: 'random', death: false, pray: DEFAULT_PRAY,
+    v: 9, mode: 'dodge', latency: 0, color: 'random', death: false, pray: DEFAULT_PRAY,
     ui: 'auto', zoom: 12, camera: 'frame',
-    chat: true, trueTile: true, hover: true, grid: true, paths: true, field: false, queued: false, sound: true, volume: 30, metro: false,
+    chat: true, ti: TI_DEFAULTS, grid: true, paths: true, field: false, queued: false, sound: true, volume: 30, metro: false,
   };
   // settings saved by earlier versions: v3 brought closer zoom steps and the camera that keeps Doom in view;
   // v4 keeps only the protection prayers (where they sat in the old book);
   // v5 drops Doom's autos and caps the interface scale at 125%; v6 drops the death memes; v7 drops the Rockblock drill;
-  // v8 adds the mode, Double rock or Rockblock + punish
+  // v8 adds the mode, Double rock or Rockblock + punish; v9 turns True tile and Hovered tile into RuneLite-style tile indicators
   function migrate(s) {
     if (!s) return s;
     let o = { ...s };
@@ -456,8 +489,32 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
     delete o.memes;
     delete o.drill;
     if (o.mode !== 'punish') o.mode = 'dodge';
-    o.v = 8;
+    if (!(o.v >= 9)) {
+      if (!o.ti) {
+        const ti = tiCopy();
+        if (o.trueTile === false) ti.cur.on = false;
+        if (o.hover === false) ti.hover.on = false;
+        o.ti = ti;
+      }
+      delete o.trueTile; delete o.hover;
+    }
+    o.v = 9;
     return o;
+  }
+  // RuneLite writes colours as #AARRGGBB; six digits mean fully opaque
+  const ARGB = /^#?([0-9a-f]{2})?([0-9a-f]{6})$/i;
+  function argb(hex) {
+    const m = ARGB.exec(String(hex == null ? '' : hex).trim());
+    if (!m) return null;
+    const a = m[1] === undefined ? 255 : parseInt(m[1], 16), n = parseInt(m[2], 16);
+    return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${(a / 255).toFixed(3)})`;
+  }
+  function argbText(hex) {
+    const m = ARGB.exec(String(hex == null ? '' : hex).trim());
+    return m ? ('#' + (m[1] || 'FF') + m[2]).toUpperCase() : null;
+  }
+  function validTi(t) {
+    return !!t && ['dest', 'hover', 'cur'].every(k => t[k] && typeof t[k].on === 'boolean' && argb(t[k].line) && argb(t[k].fill) && Number.isFinite(t[k].w) && t[k].w >= 0 && t[k].w <= 5);
   }
   function validPray(p) {
     if (!p || typeof p !== 'object') return false;
@@ -1413,6 +1470,22 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
     const d = ROCK_D * st.sc * V.TS, r = d / 2;
     return { X: clamp(sx(st.x), V.rx0 + r, V.rx1 - r), Y: clamp(sy(st.y) - st.h * V.TS, V.ry0 + r, V.ry1 - r), d };
   }
+  // one tile indicator: the tile filled with its fill colour and outlined in its highlight colour at its border width
+  function tileIndicator(t, x, y) {
+    if (!t.on) return;
+    const TS = V.TS, X = sx(x), Y = sy(y), fill = argb(t.fill), line = argb(t.line);
+    if (fill) { ctx.fillStyle = fill; ctx.fillRect(X, Y, TS, TS); }
+    if (line && t.w > 0) { ctx.strokeStyle = line; ctx.lineWidth = t.w; ctx.strokeRect(X + t.w / 2, Y + t.w / 2, TS - t.w, TS - t.w); }
+  }
+  // where you are walking to: a click shows at once, as the game's destination does, then the end of your path
+  function destTile() {
+    for (let i = G.inputs.length - 1; i >= 0; i--) {
+      const q = G.inputs[i];
+      if (q.type === 'move') return { x: clamp(q.x, 0, W - 1), y: clamp(q.y, 0, H - 1) };
+      if (q.type === 'attack') return null;
+    }
+    return G.player.dest;
+  }
   function playerPos(f) {
     const tr = G.player.trail;
     if (tr.length < 2) return tr[tr.length - 1] || [G.player.x, G.player.y];
@@ -1547,13 +1620,15 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
       shadowBlob(sx(st.x), sy(st.y + 0.1), TS * 0.36 * s, TS * 0.24 * s, st.shadow);
     }
 
-    // tile markers
-    if (S.hover && G.mouse && G.started && !inPanel(G.mouse[0], G.mouse[1])) {
+    // tile indicators, as RuneLite's plugin draws them: the hovered tile, where you are walking to, and your true tile
+    const TI = S.ti;
+    if (G.mouse && G.started && !inPanel(G.mouse[0], G.mouse[1]) && !inSpec(G.mouse[0], G.mouse[1])) {
       const [hx, hy] = worldTile(G.mouse[0], G.mouse[1]);
-      if (inBounds(hx, hy)) { ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 1; ctx.strokeRect(Math.round(sx(hx)) + 1.5, Math.round(sy(hy)) + 1.5, TS - 3, TS - 3); }
+      if (inBounds(hx, hy)) tileIndicator(TI.hover, hx, hy);
     }
-    if (P.dest) { ctx.strokeStyle = 'rgba(200,200,200,0.55)'; ctx.lineWidth = 1; ctx.strokeRect(Math.round(sx(P.dest.x)) + 2.5, Math.round(sy(P.dest.y)) + 2.5, TS - 5, TS - 5); }
-    if (S.trueTile) { ctx.strokeStyle = '#2bff2b'; ctx.lineWidth = 2; ctx.strokeRect(Math.round(sx(P.x)) + 1, Math.round(sy(P.y)) + 1, TS - 2, TS - 2); }
+    const dest = destTile();
+    if (dest) tileIndicator(TI.dest, dest.x, dest.y);
+    tileIndicator(TI.cur, P.x, P.y);
 
     // entities, painted back to front
     const ents = [];
@@ -2400,7 +2475,28 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
       el.checked = !!S[k];
       el.addEventListener('change', () => { S[k] = el.checked; save(); syncUI(); });
     };
-    chk('#set-truetile', 'trueTile'); chk('#set-hover', 'hover'); chk('#set-grid', 'grid'); chk('#set-field', 'field');
+    chk('#set-grid', 'grid'); chk('#set-field', 'field');
+    // tile indicators: a colour field takes #AARRGGBB (or #RRGGBB) and goes back to the last good value if it can't be read
+    const swatch = el => el.previousElementSibling.style.setProperty('--c', argb(el.value) || 'transparent');
+    const tiInputs = () => {
+      for (const k of ['dest', 'hover', 'cur']) {
+        $(`#ti-${k}-on`).checked = S.ti[k].on;
+        for (const part of ['line', 'fill']) { const el = $(`#ti-${k}-${part}`); el.value = S.ti[k][part]; swatch(el); }
+        $(`#ti-${k}-w`).value = String(S.ti[k].w);
+      }
+    };
+    for (const k of ['dest', 'hover', 'cur']) {
+      $(`#ti-${k}-on`).addEventListener('change', e => { S.ti[k].on = e.target.checked; save(); });
+      for (const part of ['line', 'fill']) {
+        const el = $(`#ti-${k}-${part}`);
+        el.addEventListener('input', () => swatch(el));
+        el.addEventListener('change', () => { const v = argbText(el.value); if (v) S.ti[k][part] = v; el.value = S.ti[k][part]; swatch(el); save(); });
+      }
+      const wEl = $(`#ti-${k}-w`);
+      wEl.addEventListener('change', () => { const v = Number(wEl.value); if (wEl.value !== '' && Number.isFinite(v)) S.ti[k].w = clamp(Math.round(v * 10) / 10, 0, 5); wEl.value = String(S.ti[k].w); save(); });
+    }
+    $('#ti-reset').addEventListener('click', () => { S.ti = tiCopy(); tiInputs(); save(); });
+    tiInputs();
     chk('#set-paths', 'paths'); chk('#set-queued', 'queued'); chk('#set-chat', 'chat');
     chk('#set-sound', 'sound'); chk('#set-metro', 'metro');
     // Sound on the control row and Sound effects in Settings are the same setting
@@ -2427,6 +2523,7 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
     ST.hitBy = { ...freshStats().hitBy, ...(ST.hitBy || {}) };
     S.pray = validPray(S.pray) ? { ...S.pray } : { ...DEFAULT_PRAY };
     if (!(S.volume >= 0 && S.volume <= 100)) S.volume = DEFAULTS.volume;
+    S.ti = validTi(S.ti) ? JSON.parse(JSON.stringify(S.ti)) : tiCopy();
     for (const [n, src] of Object.entries(A.icons)) loadImg(n, src);
     loadImg('doom', A.doom);
     loadImg('player', A.player);
@@ -2442,7 +2539,7 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
     exampleReport();
     syncUI();
     if (window.claude && window.claude.hot && window.claude.hot.snapshot) window.claude.hot.snapshot(() => ({ S, ST }));
-    window.__drs = { get G() { return G; }, get S() { return S; }, set S(v) { S = v; }, get ST() { return ST; }, render, doTick, queueInput, findPath, startRep, newGame, R, V, cam, layout, camGoal, updateCam, rockState, rockScreen, sx, sy, DOOM_VIEW, YOU_VIEW, migrate, movePrayer, prayerAt, specGeom, inSpec, soundLog, SND, THROW_SOUNDS, WINDUP, synth: OsrsSynth, A, RB, CHARGE, HAL, doomDist, inReach, setMode, worldTile, START, slotAt, playerSprite, outGain: () => OUT && OUT.gain.value, volGain, audio, chargeBarGeom, onDoom };
+    window.__drs = { get G() { return G; }, get S() { return S; }, set S(v) { S = v; }, get ST() { return ST; }, render, doTick, queueInput, findPath, startRep, newGame, R, V, cam, layout, camGoal, updateCam, rockState, rockScreen, sx, sy, DOOM_VIEW, YOU_VIEW, migrate, movePrayer, prayerAt, specGeom, inSpec, soundLog, SND, THROW_SOUNDS, WINDUP, synth: OsrsSynth, A, RB, CHARGE, HAL, doomDist, inReach, setMode, worldTile, START, slotAt, argb, destTile, TI_DEFAULTS, playerSprite, outGain: () => OUT && OUT.gain.value, volGain, audio, chargeBarGeom, onDoom };
     requestAnimationFrame(frame);
   }
 

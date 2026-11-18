@@ -34,6 +34,7 @@ You always run, as you would at Doom. Both modes start you south of Doom, below 
 - The Last rep report shows how you exited each rock, what landed on you and each barrage hit. Session stats track clean reps, your streak, and damage taken and times hit from debris, boulders and the barrage.
 - The game's own sound effects, played on the same ticks as in game, so you can learn the double rock by ear. See [Sound cues](#sound-cues).
 - A tick ruler, a tick log, pausing and single-tick stepping.
+- Tile indicators like RuneLite's plugin: your destination tile, the hovered tile and your true tile, each with its own highlight colour, fill colour and border width. Colours are RuneLite's #AARRGGBB. They default to one player's own RuneLite settings, and Settings can change or reset them.
 - Sound on or off and the volume sit at the right end of the control row under the game view.
 - The bottom of the page has short How to play steps for both modes.
 - Tile markers, hints, camera and zoom are in Settings. Settings and stats are saved in your browser.
@@ -121,7 +122,7 @@ The first command builds the bare page. The second wraps it as a complete web pa
 bash tools/run_tests.sh
 ```
 
-This builds the page, appends `test/harness-tail.html` and runs it in headless Chrome. The harness steps the sim tick by tick and runs 153 checks covering timings, damage, prayers, sounds, the rock flights, Rockblock + punish, the camera, saved settings and the page panels. If Chrome isn't at its usual Windows path, set `CHROME` to its location. Set `PYTHON` to choose the interpreter.
+This builds the page, appends `test/harness-tail.html` and runs it in headless Chrome. The harness steps the sim tick by tick and runs 161 checks covering timings, damage, prayers, sounds, the rock flights, Rockblock + punish, the camera, saved settings and the page panels. If Chrome isn't at its usual Windows path, set `CHROME` to its location. Set `PYTHON` to choose the interpreter.
 
 `test/shot-tail.html` freezes a scenario for screenshots. Append it to the built page and open the result with a hash such as `#barrage`.
 

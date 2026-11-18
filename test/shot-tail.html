@@ -56,6 +56,12 @@ window.addEventListener("load", () => setTimeout(() => {
       D.G.bossSplats.forEach(s => { s.t0 = now + 1e9; });
     }
   }
+  else if (sc === "tiles") {
+    // tile indicators: running to a clicked tile, with the mouse on another
+    run(3); D.queueInput({ type: "move", x: D.G.player.x + 4, y: D.G.player.y - 2 }); run(1); f = 0.5;
+    D.G.frozenF = f; D.G.stepAnimAt = 0; D.cam.init = false; D.render(performance.now());
+    D.G.mouse = [D.sx(D.G.player.x - 1.5), D.sy(D.G.player.y + 1.5)];
+  }
   else if (sc === "edit") {
     run(2);
     D.G.editing = true;
@@ -69,6 +75,6 @@ window.addEventListener("load", () => setTimeout(() => {
   }
   if (sc === "og") { D.S = Object.assign({}, D.S, { chat: false }); document.getElementById("paused").hidden = true; }
   D.G.frozenF = f; D.G.stepAnimAt = 0; D.cam.init = false;
-  if (sc !== "edit") D.G.mouse = sc === "orb" ? [D.orbGeom().x, D.orbGeom().y] : null;
+  if (sc !== "edit" && sc !== "tiles") D.G.mouse = null;
 }, 300));
 </script>

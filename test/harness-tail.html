@@ -282,12 +282,14 @@ window.addEventListener('load', () => setTimeout(() => {
 
     // I: saved settings from the earlier versions carry over
     const m = D.migrate({ zoom: 14, camera: 'follow', layout: 'full', tickMs: 1200, debris: 26, keys: true, mode: 'drill', std: true, ui: '2' });
-    ok(m.zoom === 12 && m.camera === 'frame' && m.v === 8, 'I v2 settings move to the closer zoom and the camera that keeps Doom in view');
+    ok(m.zoom === 12 && m.camera === 'frame' && m.v === 9, 'I v2 settings move to the closer zoom and the camera that keeps Doom in view');
     ok(!('memes' in D.migrate({ v: 5, memes: true })), 'I the death memes setting is dropped');
     ok(m.ui === '1.25' && !('std' in m), 'I interface scale caps at 125% and the autos setting is dropped');
     ok(m.pray.mage === 16 && m.pray.range === 17 && m.pray.melee === 18 && !('drill' in m), 'I the full book keeps protects on row 4, and the old drill mode is dropped');
     const m6 = D.migrate({ v: 6, drill: true });
-    ok(!('drill' in m6) && m6.v === 8, 'I the Rockblock drill setting is dropped');
+    ok(!('drill' in m6) && m6.v === 9, 'I the Rockblock drill setting is dropped');
+    const mTi = D.migrate({ v: 8, trueTile: false, hover: true });
+    ok(mTi.v === 9 && mTi.ti.cur.on === false && mTi.ti.hover.on === true && mTi.ti.dest.on === true && !('trueTile' in mTi) && !('hover' in mTi), 'I the old True tile and Hovered tile switches carry over into the tile indicators');
     ok(m.mode === 'dodge' && m6.mode === 'dodge' && D.migrate({ v: 7, mode: 'punish' }).mode === 'punish', 'I the mode defaults to Double rock, and a saved Rockblock + punish is kept');
     ok(!('tickMs' in m) && !('debris' in m) && !('keys' in m) && !('layout' in m), 'I removed options are dropped');
     const custom = Array(30).fill(null); custom[7] = 'protect_magic'; custom[12] = 'protect_missiles'; custom[0] = 'protect_melee';
@@ -463,6 +465,29 @@ window.addEventListener('load', () => setTimeout(() => {
     ok(qP().x === D.START.x && qP().y === D.START.y && !D.inSpec(qOrb.x, qOrb.y) && D.playerSprite() === 'player' && !D.onDoom(qCx, qCy), 'R back in Double rock: its own start tile, the twisted bow, no spec orb, and Doom is not a target');
     run(6);
     ok(D.G.rep && D.G.rep.charge === null, 'R Double rock reps have no charge');
+
+    // X: tile indicators, as RuneLite's plugin draws them, with Nico's settings by default
+    const xT = D.S.ti, xD = D.TI_DEFAULTS;
+    ok([xT.dest.line, xT.dest.fill, xT.dest.w, xT.hover.line, xT.hover.fill, xT.hover.w, xT.cur.line, xT.cur.fill, xT.cur.w].join() === '#FF808080,#19CDCDCD,0.8,#5A494837,#00000000,0.8,#FF00FFFF,#0F000000,0.8' && xT.dest.on && xT.hover.on && xT.cur.on, 'X the default tile indicators are the RuneLite settings from the screenshot');
+    ok(D.argb('#FF00FFFF') === 'rgba(0,255,255,1.000)' && D.argb('#0F000000') === 'rgba(0,0,0,0.059)' && D.argb('#808080') === 'rgba(128,128,128,1.000)' && D.argb('#5a494837') === 'rgba(73,72,55,0.353)' && D.argb('#GG000000') === null, 'X colours read as #AARRGGBB, with opacity first');
+    const xIn = id => document.getElementById(id);
+    ok(xIn('ti-cur-line').value === '#FF00FFFF' && xIn('ti-dest-fill').value === '#19CDCDCD' && xIn('ti-hover-w').value === '0.8' && xIn('ti-cur-on').checked, 'X the settings show each indicator');
+    xIn('ti-cur-line').value = 'ff0000ff'; xIn('ti-cur-line').dispatchEvent(new Event('change'));
+    const xOk = D.S.ti.cur.line === '#FF0000FF' && xIn('ti-cur-line').value === '#FF0000FF';
+    xIn('ti-cur-line').value = 'not a colour'; xIn('ti-cur-line').dispatchEvent(new Event('change'));
+    ok(xOk && D.S.ti.cur.line === '#FF0000FF' && xIn('ti-cur-line').value === '#FF0000FF', 'X a colour field takes RuneLite colours and goes back to the last good one if it cannot be read');
+    xIn('ti-hover-w').value = '9'; xIn('ti-hover-w').dispatchEvent(new Event('change'));
+    xIn('ti-dest-on').checked = false; xIn('ti-dest-on').dispatchEvent(new Event('change'));
+    ok(D.S.ti.hover.w === 5 && !D.S.ti.dest.on, 'X border widths stop at 5 px, and each indicator switches off');
+    document.getElementById('ti-reset').click();
+    ok(D.S.ti.cur.line === '#FF00FFFF' && D.S.ti.hover.w === 0.8 && D.S.ti.dest.on && xIn('ti-cur-line').value === '#FF00FFFF', 'X Reset puts the screenshot settings back');
+    D.newGame(true);
+    const xX0 = D.G.player.x, xY0 = D.G.player.y;
+    D.queueInput({ type: 'move', x: xX0 + 3, y: xY0 });
+    const xQ = D.destTile();
+    run(1);
+    const xAfter = D.destTile();
+    ok(xQ && xQ.x === xX0 + 3 && xQ.y === xY0 && xAfter && xAfter.x === xX0 + 3 && D.G.player.x === xX0 + 2, 'X the destination tile shows as soon as you click, then stays while you run there');
 
     // W: the page ends with short steps for both modes
     const wHow = document.querySelector('.howto'), wLists = wHow ? [...wHow.querySelectorAll('ol.steps')] : [];
