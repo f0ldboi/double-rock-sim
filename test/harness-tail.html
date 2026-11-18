@@ -390,8 +390,8 @@ window.addEventListener('load', () => setTimeout(() => {
     ok(document.getElementById('mode-punish').getAttribute('aria-pressed') === 'true' && document.getElementById('ruler').textContent.includes('click tile 2') && document.getElementById('ruler').textContent.includes('beam fires'), 'R the mode button and the tick ruler switch to the punish steps');
     D.layout();
     const qOrb = D.specGeom();
-    ok(D.inSpec(qOrb.x, qOrb.y) && qOrb.y < D.V.ch * 0.15 && qOrb.x > D.V.px, 'R the spec orb sits at the top right');
-    ok(parseFloat(getComputedStyle(document.querySelector('.view')).getPropertyValue('--hud-top')) >= qOrb.y + qOrb.r, 'R the pause card sits under the spec orb');
+    ok(D.inSpec(qOrb.x, qOrb.y) && Math.abs(qOrb.x - (D.V.px + D.V.pw / 2)) < 1 && qOrb.y + qOrb.r <= D.V.py && Math.abs(qOrb.r - 34 * D.V.ui) < 0.01, 'R the spec orb sits right above the prayer book, centred, at twice its in-game size');
+    ok(parseFloat(getComputedStyle(document.querySelector('.view')).getPropertyValue('--hud-top')) < qOrb.y - qOrb.r, 'R the pause card stays at the top, clear of the spec orb');
     D.queueInput({ type: 'spec' });
     ok(!qP().spec, 'R the special does not arm before the tick');
     run(1); ok(qP().spec, 'R the special arms on the next tick');
@@ -400,13 +400,10 @@ window.addEventListener('load', () => setTimeout(() => {
     D.queueInput({ type: 'spec' }); run(1);
     ok(!qP().spec && document.getElementById('log').firstElementChild.textContent.includes('not have enough special attack energy'), 'R under 30% energy the special will not arm');
     ok(D.doomDist(16, 8) === 2 && D.inReach(16, 8) && D.inReach(15, 9) && !D.inReach(17, 8) && !D.inReach(12, 12), 'R the halberd reaches 2 tiles from Doom');
-    // Doom's hull: drawn in this mode, and a click anywhere in it attacks, horns included
+    // Doom's tiles: tinted in this mode, and a click on any of them attacks, but nowhere around them
     D.render(performance.now());
-    const qHull = D.doomHullNow(), qCx = qHull ? qHull.reduce((a, p) => a + p[0], 0) / qHull.length : 0, qCy = qHull ? qHull.reduce((a, p) => a + p[1], 0) / qHull.length : 0;
-    const qLeft = qHull ? qHull.reduce((a, p) => (p[0] < a[0] ? p : a)) : [0, 0];
-    const qHorn = [qLeft[0] + (qCx - qLeft[0]) * 0.08, qLeft[1] + (qCy - qLeft[1]) * 0.08];
-    const qHornTile = D.worldTile(qHorn[0], qHorn[1]);
-    ok(!!D.doomHull() && D.doomHull().length >= 6 && D.onDoom(qCx, qCy) && D.onDoom(qHorn[0], qHorn[1]) && !(qHornTile[0] >= 10 && qHornTile[0] < 15 && qHornTile[1] >= 10 && qHornTile[1] < 15) && !D.onDoom(D.sx(20.5), D.sy(6.5)), 'R Doom\'s hull (' + (D.doomHull() || []).length + ' points) is its click area, horns past its tiles included');
+    const qCx = D.sx(12.5), qCy = D.sy(12.5), qT = D.V.TS;
+    ok(D.onDoom(qCx, qCy) && D.onDoom(D.sx(10.05), D.sy(14.95)) && D.onDoom(D.sx(14.95), D.sy(10.05)) && !D.onDoom(D.sx(9.9), D.sy(12.5)) && !D.onDoom(D.sx(12.5), D.sy(15.05)) && !D.onDoom(D.sx(20.5), D.sy(6.5)) && qT > 0, 'R a click on any of Doom' + "'" + 's 5x5 tiles attacks, and only there');
     const qBar = D.chargeBarGeom();
     ok(qBar.w >= 2.5 * D.V.TS && qBar.h >= 0.2 * D.V.TS && qBar.s >= 30 * D.V.ui, 'R the charge bar is drawn big: ' + qBar.w + ' by ' + qBar.h + ' px, about ' + (qBar.w / D.V.TS).toFixed(1) + ' tiles wide');
 
@@ -462,6 +459,10 @@ window.addEventListener('load', () => setTimeout(() => {
     ok(qP().x === D.START.x && qP().y === D.START.y && !D.inSpec(qOrb.x, qOrb.y) && D.playerSprite() === 'player' && !D.onDoom(qCx, qCy), 'R back in Double rock: its own start tile, the twisted bow, no spec orb, and Doom is not a target');
     run(6);
     ok(D.G.rep && D.G.rep.charge === null, 'R Double rock reps have no charge');
+
+    // W: the page ends with short steps for both modes
+    const wHow = document.querySelector('.howto'), wLists = wHow ? [...wHow.querySelectorAll('ol.steps')] : [];
+    ok(!!wHow && wHow.querySelector('h2').textContent === 'How to play' && wLists.length === 2 && wLists[0].children.length === 6 && wLists[1].children.length === 5 && wHow.nextElementSibling.classList.contains('credit'), 'W How to play sits at the bottom with steps for Double rock (6) and Rockblock + punish (5)');
 
     // V: sound on or off and the volume, on the control row under the game view
     const vBox = document.getElementById('bar-sound'), vSet = document.getElementById('set-sound'), vVol = document.getElementById('set-volume'), vOut = document.getElementById('set-volume-out');

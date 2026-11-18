@@ -165,6 +165,11 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
 .log li.hint span:last-child{color:var(--dim)}
 
 .credit{margin:0;font-size:var(--fs-xs);color:var(--dim)}
+.howto-cols{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px 32px}
+.howto h3{margin:0 0 8px;font:700 var(--fs-md)/1.2 var(--font-body);color:var(--yellow);text-shadow:1px 1px 0 #000}
+.steps{margin:0;padding-left:1.5em;display:flex;flex-direction:column;gap:7px;font-size:var(--fs-sm);line-height:1.45;max-width:62ch}
+.steps li{padding-left:2px}
+.steps li::marker{color:var(--orange);font-weight:700}
 
 @media (max-width:1000px){
   .cards{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
@@ -175,7 +180,7 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
   .overlay{position:static;justify-content:center;padding:12px}
 }
 @media (max-width:640px){
-  .cards,.form,.toggles{grid-template-columns:minmax(0,1fr)}
+  .cards,.form,.toggles,.howto-cols{grid-template-columns:minmax(0,1fr)}
   .divider{display:none}
 }
 </style>
@@ -204,7 +209,7 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
           <dt>Run</dt><dd><kbd>Click</kbd></dd>
           <dt>Walk</dt><dd><kbd>Ctrl</kbd> + <kbd>Click</kbd></dd>
           <dt class="is-punish">Attack Doom</dt><dd class="is-punish"><kbd>Click</kbd> Doom</dd>
-          <dt class="is-punish">Special attack</dt><dd class="is-punish"><img class="ico" id="ov-ico-spec" alt="">Spec orb, top right</dd>
+          <dt class="is-punish">Special attack</dt><dd class="is-punish"><img class="ico" id="ov-ico-spec" alt="">Spec orb, above the prayers</dd>
           <dt>Pause</dt><dd><kbd>Space</kbd></dd>
           <dt>Next tick</dt><dd><kbd>.</kbd></dd>
         </dl>
@@ -323,6 +328,33 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
       <ol class="log" id="log"><li class="hint"><span class="lt">–</span><span>Every event is stamped with its tick. T+ counts from the first throw.</span></li></ol>
     </section>
   </div>
+
+  <section class="panel howto" aria-labelledby="how-h">
+    <h2 id="how-h">How to play</h2>
+    <div class="howto-cols">
+      <div>
+        <h3>Double rock</h3>
+        <ol class="steps">
+          <li>Stand still. Doom throws two rocks, one after the other.</li>
+          <li>When rock 1 flashes white, click a tile a few steps away. Its boulder lands where you were standing.</li>
+          <li>Stay off the dark shadows. Rocks fall on them.</li>
+          <li>When rock 2 flashes white, step onto a tile where rock 1's rocks just fell. Rock 2's never fall there.</li>
+          <li>When rock 2 bursts, turn on Protect from Magic for a blue rock, or Protect from Missiles for a green one.</li>
+          <li>Switch prayers for each of the six hits. Blue rock: Magic, Missiles, Magic, Magic, Missiles, Magic. Green rock: the same with the two swapped.</li>
+        </ol>
+      </div>
+      <div>
+        <h3>Rockblock + punish</h3>
+        <ol class="steps">
+          <li>You start on green tile 1, below Doom.</li>
+          <li>When rock 1 flashes white, click green tile 2.</li>
+          <li>When rock 2 flashes white, click the special attack orb, then click Doom.</li>
+          <li>You run up and hit Doom with the halberd. That stops the yellow bar over its head before its beam fires.</li>
+          <li>Pray the six hits, the same as in Double rock.</li>
+        </ol>
+      </div>
+    </div>
+  </section>
 
   <footer class="credit">Unofficial fan practice tool, not endorsed by or affiliated with Jagex. Game sprites, renders and sound effects are property of Jagex.</footer>
 </div>
@@ -1278,8 +1310,7 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
     cv.height = Math.round(V.ch * V.dpr);
     V.ui = S.ui === 'auto' ? clamp((V.ch * 0.62) / PANEL_H, 0.55, 1.25) : Math.min(1.25, Number(S.ui) || 1);
     cv.parentElement.style.setProperty('--ui-s', clamp(V.ui, 0.8, 1.15).toFixed(3));
-    // the pause card sits under the spec orb when there is one
-    cv.parentElement.style.setProperty('--hud-top', Math.round(punishMode() ? 52 * V.ui : 10 * clamp(V.ui, 0.8, 1.15)) + 'px');
+    cv.parentElement.style.setProperty('--hud-top', Math.round(10 * clamp(V.ui, 0.8, 1.15)) + 'px');
     V.pw = PANEL_W * V.ui; V.ph = PANEL_H * V.ui;
     V.px = V.cw - V.pw; V.py = V.ch - V.ph;
     V.TS0 = Math.max(14, V.ch / S.zoom);
@@ -1704,15 +1735,9 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
     drawPanel(now);
   }
 
-  // Rockblock + punish markers, like RuneLite's: tiles 1 and 2 in green, and the halberd's reach around Doom
+  // Rockblock + punish markers, like RuneLite's: tiles 1 and 2 in green
   function drawRockblockMarks() {
-    const TS = V.TS, r = HAL.reach;
-    ctx.save();
-    ctx.setLineDash([TS * 0.2, TS * 0.13]);
-    ctx.lineWidth = Math.max(1.5, TS * 0.045);
-    ctx.strokeStyle = 'rgba(255,152,31,0.6)';
-    ctx.strokeRect(Math.round(sx(BOSS.x - r)) + 0.5, Math.round(sy(BOSS.y - r)) + 0.5, Math.round((BOSS.s + 2 * r) * TS), Math.round((BOSS.s + 2 * r) * TS));
-    ctx.restore();
+    const TS = V.TS;
     ctx.font = `700 ${Math.round(TS * 0.36)}px Barlow, Arial, sans-serif`;
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     for (const [label, t] of [['1', RB.t1], ['2', RB.t2]]) {
@@ -1777,51 +1802,28 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
     shadowBlob(X, sy(BOSS.y + BOSS.s - 0.4), V.TS * 3.2, V.TS * 1.1, 0.45);
     if (ready(im)) ctx.drawImage(im, X - w / 2, Yb - h, w, h * (1 + lift * 0.03));
     else { ctx.fillStyle = '#7a1f1f'; ctx.fillRect(sx(BOSS.x), sy(BOSS.y), BOSS.s * V.TS, BOSS.s * V.TS); }
-    // its hull on screen this frame: in Rockblock + punish it is drawn, softer than RuneLite's, and a click in it attacks
-    doomHullNow = DOOM_HULL ? DOOM_HULL.map(([u, v]) => [X - w / 2 + u * w, Yb - h + v * h * (1 + lift * 0.03)]) : null;
-    if (punishMode() && doomHullNow) {
-      ctx.save();
-      ctx.beginPath();
-      doomHullNow.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
-      ctx.closePath();
-      ctx.fillStyle = 'rgba(0,255,255,0.06)'; ctx.fill();
-      ctx.shadowColor = 'rgba(0,255,255,0.55)'; ctx.shadowBlur = 8;
-      ctx.lineJoin = 'round'; ctx.lineWidth = Math.max(1.5, V.TS * 0.05); ctx.strokeStyle = 'rgba(0,255,255,0.45)';
-      ctx.stroke();
-      ctx.restore();
-    }
+    // Rockblock + punish: the 5x5 tiles Doom stands on, tinted a soft reddish grey over its body; a click on them attacks
+    if (punishMode()) drawDoomTiles();
   }
-  // Doom's hull, like RuneLite's NPC Indicators draw one: the convex outline of its sprite, found once from the image's
-  // opaque pixels and kept in shares of the image's width and height
-  let DOOM_HULL = null, doomHullNow = null;
-  function buildDoomHull(im) {
-    const w = 190, h = Math.round(w * im.naturalHeight / im.naturalWidth), c = mk(w, h), g = c.getContext('2d');
-    g.drawImage(im, 0, 0, w, h);
-    const a = g.getImageData(0, 0, w, h).data, pts = [];
-    for (let y = 0; y < h; y++) {
-      let x0 = -1, x1 = -1;
-      for (let x = 0; x < w; x++) if (a[(y * w + x) * 4 + 3] > 60) { if (x0 < 0) x0 = x; x1 = x; }
-      if (x0 >= 0) pts.push([x0 / w, y / h], [(x1 + 1) / w, y / h], [x0 / w, (y + 1) / h], [(x1 + 1) / w, (y + 1) / h]);
+  function drawDoomTiles() {
+    const TS = V.TS, x0 = Math.round(sx(BOSS.x)), y0 = Math.round(sy(BOSS.y)), n = BOSS.s, size = Math.round(n * TS);
+    ctx.save();
+    ctx.fillStyle = 'rgba(150,88,82,0.16)';
+    ctx.fillRect(x0, y0, size, size);
+    ctx.strokeStyle = 'rgba(190,128,122,0.22)'; ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let i = 1; i < n; i++) {
+      const q = Math.round(i * TS) + 0.5;
+      ctx.moveTo(x0 + q, y0); ctx.lineTo(x0 + q, y0 + size);
+      ctx.moveTo(x0, y0 + q); ctx.lineTo(x0 + size, y0 + q);
     }
-    pts.sort((p, q) => p[0] - q[0] || p[1] - q[1]);
-    const cross = (o, p, q) => (p[0] - o[0]) * (q[1] - o[1]) - (p[1] - o[1]) * (q[0] - o[0]);
-    const half = list => {
-      const out = [];
-      for (const p of list) { while (out.length >= 2 && cross(out[out.length - 2], out[out.length - 1], p) <= 0) out.pop(); out.push(p); }
-      return out.slice(0, -1);
-    };
-    DOOM_HULL = half(pts).concat(half(pts.slice().reverse()));
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(190,128,122,0.6)'; ctx.lineWidth = Math.max(1.5, TS * 0.04);
+    ctx.strokeRect(x0 + 0.5, y0 + 0.5, size - 1, size - 1);
+    ctx.restore();
   }
-  function inPoly(poly, x, y) {
-    let inside = false;
-    for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
-      const [xi, yi] = poly[i], [xj, yj] = poly[j];
-      if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) inside = !inside;
-    }
-    return inside;
-  }
-  // in Rockblock + punish, a click on Doom's hull or its tiles attacks it
-  const onDoom = (mx, my) => punishMode() && ((!!doomHullNow && inPoly(doomHullNow, mx, my)) || isBoss(...worldTile(mx, my)));
+  // in Rockblock + punish, a click on Doom's tiles attacks it
+  const onDoom = (mx, my) => punishMode() && isBoss(...worldTile(mx, my));
   // Double rock: the twisted bow. Rockblock + punish: the crystal halberd, a taller render (the halberd stands over your
   // head) drawn at the same scale, so you stay the same size.
   const playerSprite = () => punishMode() && A.playerHalberd ? 'playerHalberd' : 'player';
@@ -1995,20 +1997,20 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
     void now;
   }
 
-  // Rockblock + punish: the special attack orb at the top right, where the game has it by the minimap, with its
-  // energy plate on the left. It lights up while the special is armed.
-  function specGeom() { const ui = V.ui, r = 17 * ui; return { x: V.cw - 10 * ui - r, y: 10 * ui + r, r }; }
+  // Rockblock + punish: the special attack orb, drawn twice the game's size and centred right above the prayer book so
+  // it is quick to click, with its energy plate on the left. It lights up while the special is armed.
+  function specGeom() { const ui = V.ui, r = 34 * ui; return { x: V.px + V.pw / 2, y: V.py - 12 * ui - r, r }; }
   function inSpec(mx, my) { if (!punishMode()) return false; const o = specGeom(); return Math.hypot(mx - o.x, my - o.y) <= o.r; }
   function drawSpecOrb() {
     if (!punishMode()) return;
     const ui = V.ui, o = specGeom(), P = G.player;
-    const w = Math.round(30 * ui), h = Math.round(17 * ui), x = Math.round(o.x - o.r - w + 5 * ui), y = Math.round(o.y - h / 2);
+    const w = Math.round(44 * ui), h = Math.round(24 * ui), x = Math.round(o.x - o.r - w + 8 * ui), y = Math.round(o.y - h / 2);
     ctx.fillStyle = '#000'; ctx.fillRect(x - 1, y - 1, w + 2, h + 2);
     ctx.fillStyle = '#3b3428'; ctx.fillRect(x, y, w, h);
     ctx.fillStyle = '#5a5142'; ctx.fillRect(x, y, w, Math.max(1, Math.round(ui)));
     // the game tints orb numbers from green when full through yellow to red when empty
     const e = clamp(P.energy / 100, 0, 1), col = `rgb(${Math.round(255 * Math.min(1, 2 - 2 * e))},${Math.round(255 * Math.min(1, 2 * e))},0)`;
-    bitText(ctx, String(P.energy), x + (w - 5 * ui) / 2, o.y + ui, pxs(0.9), col, 'center');
+    bitText(ctx, String(P.energy), x + (w - 8 * ui) / 2, o.y + ui, pxs(1.3), col, 'center');
     const im = IMG[P.spec ? 'Special attack orb on' : 'Special attack orb'];
     ctx.imageSmoothingEnabled = false;
     if (ready(im)) ctx.drawImage(im, Math.round(o.x - o.r), Math.round(o.y - o.r), Math.round(o.r * 2), Math.round(o.r * 2));
@@ -2419,8 +2421,6 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
     loadImg('player', A.player);
     if (A.playerHalberd) loadImg('playerHalberd', A.playerHalberd);
     IMG['Prayer icon'].addEventListener('load', () => { if (PANEL) buildPanel(PANEL.ui, PANEL.dpr); });
-    const doomIm = IMG.doom, hull = () => { try { buildDoomHull(doomIm); } catch (e) { /* no hull, the tiles still work */ } };
-    if (ready(doomIm)) hull(); else doomIm.addEventListener('load', hull);
     buildSprites();
     buildFloor();
     newGame(false);
@@ -2431,7 +2431,7 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
     exampleReport();
     syncUI();
     if (window.claude && window.claude.hot && window.claude.hot.snapshot) window.claude.hot.snapshot(() => ({ S, ST }));
-    window.__drs = { get G() { return G; }, get S() { return S; }, set S(v) { S = v; }, get ST() { return ST; }, render, doTick, queueInput, findPath, startRep, newGame, R, V, cam, layout, camGoal, updateCam, rockState, rockScreen, sx, sy, DOOM_VIEW, YOU_VIEW, migrate, movePrayer, prayerAt, specGeom, inSpec, soundLog, SND, THROW_SOUNDS, WINDUP, synth: OsrsSynth, A, RB, CHARGE, HAL, doomDist, inReach, setMode, worldTile, START, playerSprite, outGain: () => OUT && OUT.gain.value, audio, chargeBarGeom, onDoom, doomHull: () => DOOM_HULL, doomHullNow: () => doomHullNow };
+    window.__drs = { get G() { return G; }, get S() { return S; }, set S(v) { S = v; }, get ST() { return ST; }, render, doTick, queueInput, findPath, startRep, newGame, R, V, cam, layout, camGoal, updateCam, rockState, rockScreen, sx, sy, DOOM_VIEW, YOU_VIEW, migrate, movePrayer, prayerAt, specGeom, inSpec, soundLog, SND, THROW_SOUNDS, WINDUP, synth: OsrsSynth, A, RB, CHARGE, HAL, doomDist, inReach, setMode, worldTile, START, playerSprite, outGain: () => OUT && OUT.gain.value, audio, chargeBarGeom, onDoom };
     requestAnimationFrame(frame);
   }
 
