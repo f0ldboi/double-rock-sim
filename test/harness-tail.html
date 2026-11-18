@@ -285,14 +285,50 @@ window.addEventListener('load', () => setTimeout(() => {
     ok([...document.querySelectorAll('table.dmg thead th')].map(th => th.textContent).join() === 'Damage taken,Times hit,Total,Per rep' && document.getElementById('st-n-all').textContent === String(allN), 'T the damage table has a Times hit column, ' + allN + ' hits in all');
     ok(!txt.includes('How the double rock works') && !txt.includes('The method') && txt.includes('Unofficial fan practice tool'), 'O the notes are gone and the Jagex credit stays');
 
+    // U: the game's own sound effects: every synth renders like the reference renderer, and each plays on the game's tick
+    const uIds = Object.keys(D.A.synths);
+    const uSum = s => s.reduce((a, v) => (Math.imul(a, 31) + v) | 0, 7);
+    const uRender = id => D.synth.render(Uint8Array.from(atob(D.A.synths[id]), c => c.charCodeAt(0)));
+    ok(uIds.length === 19 && uIds.every(id => uRender(id).length > 0), 'U all ' + uIds.length + ' fight sounds render');
+    const uRef = { 2675: [33075, -957099799], 10331: [33075, -706118489], 10371: [116865, 870910574], 7023: [17640, -1632619715] };
+    ok(Object.entries(uRef).every(([id, [n, c]]) => { const s = uRender(id); return s.length === n && uSum(s) === c; }), 'U renders match the reference renders sample for sample');
+    D.S = Object.assign({}, D.S, { sound: true, death: false, color: 'mage' });
+    D.newGame(true);
+    D.soundLog.length = 0;
+    const uT = D.G.nextRepTick, uHits0 = D.ST.hitBy.debris + D.ST.hitBy.boulder + D.ST.hitBy.barrage;
+    run(uT + 17);
+    const uAt = (tick, id) => D.soundLog.filter(e => e.tick === tick && e.id === id);
+    const uThrowAt = tick => D.THROW_SOUNDS.every(([id, d]) => uAt(tick, id).some(e => e.delay === d));
+    ok(D.WINDUP === 2 && uThrowAt(uT - 2) && uThrowAt(uT + 1) && D.soundLog.filter(e => e.id === D.THROW_SOUNDS[0][0]).length === 2, 'U the throw animation sounds start two ticks before each lift, T-2 and T+1');
+    ok(uAt(uT + 7, D.SND.burst).length === 1 && uAt(uT + 10, D.SND.burst).length === 1 && D.soundLog.filter(e => e.id === D.SND.burst).length === 2, 'U an explosion on each burst, T+7 and T+10');
+    ok(uAt(uT + 9, D.SND.land).length === 1 && uAt(uT + 12, D.SND.land).length === 1 && D.soundLog.filter(e => e.id === D.SND.land).every(e => e.delay === 0.2), 'U an impact 0.2 s after each landing, T+9 and T+12');
+    const uBar = [11, 12, 13, 14, 15, 16].map(k => D.soundLog.filter(e => e.tick === uT + k && (e.id === D.SND.impact.mage || e.id === D.SND.impact.range)).map(e => e.id).join('/')).join();
+    ok(uBar === '7023,7026,7023,7023,7026,7023', 'U barrage impacts follow M R M M R M: ' + uBar);
+    const uHits1 = D.ST.hitBy.debris + D.ST.hitBy.boulder + D.ST.hitBy.barrage;
+    ok(D.soundLog.filter(e => D.SND.hurt.includes(e.id)).length === uHits1 - uHits0 && uHits1 > uHits0, 'U a hit sound for each of the ' + (uHits1 - uHits0) + ' times you were hit');
+    D.soundLog.length = 0;
+    const uTick0 = D.G.tick, uPray = [2675, 2676, 2677, 2663];
+    D.queueInput({ type: 'pray', style: 'mage' }); run(1);
+    D.queueInput({ type: 'pray', style: 'range' }); run(1);
+    D.queueInput({ type: 'pray', style: 'range' }); run(1);
+    const uPrays = D.soundLog.filter(e => uPray.includes(e.id)).map(e => (e.tick - uTick0) + ':' + e.id).join();
+    ok(uPrays === '1:2675,2:2677,3:2663', 'U prayers sound on the tick they switch: on, switch, off (' + uPrays + ')');
+    D.S = Object.assign({}, D.S, { sound: false });
+    D.soundLog.length = 0;
+    run(20);
+    ok(D.soundLog.length === 0, 'U no sounds with Sound effects off');
+    D.S = Object.assign({}, D.S, { sound: true });
+
     // M: dying in Real hitpoints: the rep counts, the report says Dead, and the death window offers a fresh run
     D.S = Object.assign({}, D.S, { death: true, color: 'mage' });
     D.newGame(true);
     run(6 + 8);
     D.G.player.hp = 5;
     const repsBefore = D.ST.reps;
+    D.soundLog.length = 0;
     run(1);
     ok(D.G.dead, 'M boulder 1 kills you');
+    ok(D.soundLog.some(e => e.id === D.SND.death), 'M the death sound plays');
     ok(D.ST.reps === repsBefore + 1 && document.querySelector('#report .pill').textContent === 'Dead', 'M the fatal rep is counted and marked Dead');
     const ov = document.getElementById('overlay');
     ok(!ov.hidden && document.getElementById('ov-title').textContent === 'Oh dear, you are dead!' && document.getElementById('ov-go').textContent === 'Try again' && document.getElementById('ov-keys').hidden, 'M the death window shows, with Try again');

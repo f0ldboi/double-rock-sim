@@ -285,7 +285,7 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
     </section>
   </div>
 
-  <footer class="credit">Unofficial fan practice tool, not endorsed by or affiliated with Jagex. Game sprites and renders are property of Jagex, from the OSRS Wiki.</footer>
+  <footer class="credit">Unofficial fan practice tool, not endorsed by or affiliated with Jagex. Game sprites, renders and sound effects are property of Jagex.</footer>
 </div>
 
 <script>
@@ -298,6 +298,8 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
   const BOSS = { x: 10, y: 10, s: 5 };
   const BOSS_C = [BOSS.x + BOSS.s / 2, BOSS.y + BOSS.s / 2];
   const R = { THROW1: 0, THROW2: 3, DIP1: 6, BURST1: 7, LAND1: 9, DIP2: 9, BURST2: 10, LAND2: 12, HIT0: 11, END: 16 };
+  // Doom starts its throw animation two ticks before each rock lifts
+  const WINDUP = 2;
   const TICK_MS = 600;
   const ROCK_FLIGHT = 7;
   // debris per rock: about 18 of the 80 tiles around you, counted in the delve 8 clip; deeper delves keep delve 8's numbers
@@ -387,6 +389,7 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
 
   let G;
   function newGame(keepStarted) {
+    hush();
     G = {
       started: !!keepStarted, running: false, stepping: false, tick: 0, tickAt: 0, lastTickAt: 0, frozenF: 1, stepAnimAt: 0,
       player: { x: START.x, y: START.y, path: [], trail: [[START.x, START.y]], dest: null, run: true, walkPath: false, prayer: null, hp: 99, stun: 0, shovedTick: -1, face: -1 },
@@ -467,7 +470,10 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
     for (const inp of G.inputs) {
       if (!G.stepping && inp.at > tickTime) { keep.push(inp); continue; }
       const P = G.player;
-      if (inp.type === 'pray') P.prayer = P.prayer === inp.style ? null : inp.style;
+      if (inp.type === 'pray') {
+        P.prayer = P.prayer === inp.style ? null : inp.style;
+        play(P.prayer ? SND.pray[P.prayer] : SND.prayOff);
+      }
       else if (inp.type === 'move') setDestination(inp.x, inp.y, inp.walk);
       else if (inp.type === 'run') P.run = !P.run;
     }
@@ -503,6 +509,7 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
 
     if (G.rep) repStep(t - G.rep.start);
     else maybeStartRep(t);
+    if (!G.rep && t === G.nextRepTick - WINDUP) throwSounds();
     launch(t);
     if (t === G.clearBouldersAt) { G.boulders.clear(); if (!S.death) P.hp = 99; }
 
@@ -515,7 +522,7 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
     if (G.dying) die();
     else if (G.rep && t - G.rep.start >= R.END) finishRep();
     G.dust = G.dust.filter(d => d.until > t);
-    if (S.metro) tone(1250, 0.03, 'sine', 0.03);
+    if (S.metro) tone(1250, 0.03, 0.03);
     syncUI();
   }
 
@@ -541,6 +548,7 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
   function repStep(r) {
     switch (r) {
       case R.THROW1: throwRock(1); break;
+      case R.THROW2 - WINDUP: throwSounds(); break;
       case R.THROW2: throwRock(2); break;
       case R.DIP1: log('Rock 1 dips.', 'hint', '#ffff00'); break;
       case R.BURST1: burst(1); break;
@@ -553,7 +561,6 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
     G.rocks.push({ id, color: G.rep.color, thrown: G.tick, burst: G.tick + ROCK_FLIGHT });
     G.bossThrowAt = G.tick;
     log(`Rock ${id} thrown. It bursts on T+${G.tick - G.rep.start + ROCK_FLIGHT}.`, '', '#ffffff');
-    sfx('throw');
   }
 
   function burst(id) {
@@ -585,7 +592,7 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
       log(`Rock ${id} bursts. Your protection prayer is switched off.`, '', '#ff981f');
     }
     G.fx.push({ kind: 'burst', x: cx + 0.5, y: cy + 0.5, h: 2.2, color: rep.color, t0: performance.now(), dur: 650, seed: rnd(1, 1e6) });
-    sfx('burst');
+    play(SND.burst);
   }
 
   // The six projectiles rise out of the debris around you, each from a different side than the one before,
@@ -612,7 +619,7 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
     sh.tiles.forEach(k => { const [x, y] = unkey(k); G.dust.push({ x, y, until: G.tick + 3, seed: Math.random() * 1000 }); });
     const now = performance.now();
     sh.tiles.forEach(k => { const [x, y] = unkey(k); G.fx.push({ kind: 'puff', x: x + 0.5, y: y + 0.5, t0: now + Math.random() * 60, dur: 520, seed: Math.random() * 1000 }); });
-    sfx('land');
+    play(SND.land, SND.landAt);
     if (hit) {
       const d = rnd(15, 21);
       hurt(d, 'debris');
@@ -644,7 +651,8 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
     const ok = P.prayer === p.style;
     let d = 0;
     G.fx.push({ kind: 'impact', style: p.style, t0: performance.now(), dur: 420, seed: Math.random() * 1000 });
-    if (ok) { splat(0); sfx('block'); }
+    play(SND.impact[p.style]);
+    if (ok) splat(0);
     else { d = rnd(15, 65); hurt(d, 'barrage'); }
     if (rep) rep.hits[p.idx] = { style: p.style, ok, d };
     const what = `Barrage ${p.idx + 1} (${NAME[p.style]})`;
@@ -657,7 +665,7 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
     P.hp -= d;
     if (G.rep) { G.rep.dmg[src] += d; G.rep.hitBy[src]++; }
     splat(d);
-    sfx('hit');
+    play(pick(SND.hurt));
     if (P.hp > 0) return;
     if (S.death) { G.dying = true; return; }
     P.hp = 1;
@@ -719,6 +727,7 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
     G.dead = true;
     G.deadAt = performance.now();
     G.running = false;
+    play(SND.death);
     if (G.rep) { recordRep(G.rep, true); G.rep = null; }
     ST.streak = 0;
     save();
@@ -785,31 +794,81 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
     if (G.chat.length > 6) G.chat.shift();
   }
 
-  /* ================= sound ================= */
-  let AC = null;
-  function tone(freq, dur, type, vol, slide) {
+  /* ================= sound: the game's own sound effects ================= */
+  // OSRS stores sound effects as small synth programs and renders them as it plays. OsrsSynth ports that renderer, and
+  // A.synths holds this fight's synths from the game cache. Ids and names are Jagex's; the timings were matched against
+  // the audio of the OSRS Wiki's delve 8+ clips.
+  /*__SYNTH_JS__*/
+  const SND = {
+    burst: 10331, land: 10297, landAt: 0.2,           // DELVE_BOSS_STD_ROCK_ATTACK_EXPLOSION_01, _IMPACT_01 (0.2 s after the tick)
+    impact: { mage: 7023, range: 7026 },              // the barrage reuses the Leviathan's magic and ranged impacts
+    pray: { mage: 2675, range: 2677, melee: 2676 }, prayOff: 2663,
+    hurt: [513, 514, 515, 516, 517], death: 512,
+  };
+  // DOM_ROCK_THROW_ATTACK (sequence 12407) runs in 20 ms frames, with sounds on frames 6, 18, 27, 38 (the rock leaves Doom's hands) and 73
+  const THROW_SOUNDS = [[10362, 0.12], [10291, 0.36], [10292, 0.54], [10371, 0.76], [10338, 1.46]];
+  let AC = null, OUT = null;
+  const BUF = {}, live = new Set(), soundLog = [];
+  function audio() {
     try {
-      if (!AC) AC = new (window.AudioContext || window.webkitAudioContext)();
+      if (!AC) {
+        AC = new (window.AudioContext || window.webkitAudioContext)();
+        OUT = AC.createGain();
+        OUT.gain.value = 0.5;
+        OUT.connect(AC.destination);
+      }
       if (AC.state === 'suspended') AC.resume();
+    } catch (e) { AC = null; }
+    return AC;
+  }
+  function soundBuffer(id) {
+    if (!BUF[id]) {
+      const bin = atob(A.synths[id]), bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      const s = OsrsSynth.render(bytes);
+      const buf = AC.createBuffer(1, Math.max(1, s.length), OsrsSynth.RATE), ch = buf.getChannelData(0);
+      for (let i = 0; i < s.length; i++) ch[i] = s[i] / 128;
+      BUF[id] = buf;
+    }
+    return BUF[id];
+  }
+  // render every sound up front, so the first throw doesn't stall a tick
+  function warmAudio() {
+    if (!audio()) return;
+    try { for (const id of Object.keys(A.synths)) soundBuffer(id); } catch (e) { /* audio unavailable */ }
+  }
+  // a game sound, delay seconds from now
+  function play(id, delay = 0) {
+    if (!S.sound) return;
+    soundLog.push({ tick: G.tick, id, delay });
+    if (soundLog.length > 200) soundLog.shift();
+    if (!audio()) return;
+    try {
+      const src = AC.createBufferSource();
+      src.buffer = soundBuffer(id);
+      src.connect(OUT);
+      src.start(AC.currentTime + delay);
+      live.add(src);
+      src.onended = () => live.delete(src);
+    } catch (e) { /* audio unavailable */ }
+  }
+  function throwSounds() { for (const [id, at] of THROW_SOUNDS) play(id, at); }
+  function hush() {
+    for (const s of live) try { s.stop(); } catch (e) { /* already stopped */ }
+    live.clear();
+  }
+  // the tick metronome is the sim's own, not a game sound
+  function tone(freq, dur, vol) {
+    if (!audio()) return;
+    try {
       const o = AC.createOscillator(), g = AC.createGain(), t0 = AC.currentTime;
-      o.type = type;
       o.frequency.setValueAtTime(freq, t0);
-      if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(30, freq + slide), t0 + dur);
       g.gain.setValueAtTime(vol, t0);
       g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
       o.connect(g).connect(AC.destination);
       o.start(t0);
       o.stop(t0 + dur + 0.02);
     } catch (e) { /* audio unavailable */ }
-  }
-  function sfx(kind) {
-    if (!S.sound) return;
-    if (kind === 'throw') tone(150, 0.25, 'triangle', 0.07, -60);
-    else if (kind === 'burst') tone(90, 0.35, 'sawtooth', 0.05, -50);
-    else if (kind === 'land') tone(70, 0.22, 'triangle', 0.09, -25);
-    else if (kind === 'hit') tone(210, 0.12, 'square', 0.035, -120);
-    else if (kind === 'block') tone(620, 0.05, 'sine', 0.03);
-    else if (kind === 'pray') tone(880, 0.04, 'sine', 0.02);
   }
 
   /* ================= images and procedural sprites ================= */
@@ -1805,10 +1864,10 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
     showOverlay(null);
     resume();
     cv.focus({ preventScroll: true });
-    if (S.sound || S.metro) tone(1, 0.01, 'sine', 0.0001);
+    if (S.sound) warmAudio(); else if (S.metro) audio();
   }
   function currentF(now) { return G.running ? clamp((now - G.lastTickAt) / TICK_MS, 0, 1) : G.frozenF; }
-  function pause() { if (!G.running) return; G.frozenF = currentF(performance.now()); G.running = false; G.stepAnimAt = 0; syncUI(); }
+  function pause() { if (!G.running) return; hush(); G.frozenF = currentF(performance.now()); G.running = false; G.stepAnimAt = 0; syncUI(); }
   function resume() {
     if (G.dead || G.editing) return;
     G.lastTickAt = performance.now() - clamp(G.frozenF, 0, 0.98) * TICK_MS;
@@ -1852,7 +1911,6 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
     }
     if (!st || !G.started || G.dead) return;
     queueInput({ type: 'pray', style: st });
-    sfx('pray');
   }
   function dragEnd(mx, my) {
     const d = G.drag;
@@ -1867,7 +1925,7 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
     } else G.editSel = G.editSel === d.style ? null : d.style;
   }
   function toggleRun() {
-    if (G.started && !G.dead) { queueInput({ type: 'run' }); sfx('pray'); }
+    if (G.started && !G.dead) queueInput({ type: 'run' });
     else G.player.run = !G.player.run;
   }
   function setEditing(on) {
@@ -1950,6 +2008,7 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
     chk('#set-truetile', 'trueTile'); chk('#set-hover', 'hover'); chk('#set-grid', 'grid'); chk('#set-field', 'field');
     chk('#set-paths', 'paths'); chk('#set-queued', 'queued'); chk('#set-chat', 'chat');
     chk('#set-sound', 'sound'); chk('#set-metro', 'metro');
+    $('#set-sound').addEventListener('change', () => { if (S.sound) warmAudio(); else hush(); });
     $('#ov-ico-pray').src = A.icons['Prayer icon'];
     $('#ov-ico-run').src = A.icons['Run orb on'];
     document.documentElement.style.setProperty('--hs-red', `url("${A.icons['Damage hitsplat']}")`);
@@ -1979,7 +2038,7 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
     exampleReport();
     syncUI();
     if (window.claude && window.claude.hot && window.claude.hot.snapshot) window.claude.hot.snapshot(() => ({ S, ST }));
-    window.__drs = { get G() { return G; }, get S() { return S; }, set S(v) { S = v; }, get ST() { return ST; }, render, doTick, queueInput, findPath, startRep, newGame, R, V, cam, layout, camGoal, updateCam, rockState, rockScreen, sx, sy, DOOM_VIEW, YOU_VIEW, migrate, movePrayer, prayerAt, inOrb, orbGeom };
+    window.__drs = { get G() { return G; }, get S() { return S; }, set S(v) { S = v; }, get ST() { return ST; }, render, doTick, queueInput, findPath, startRep, newGame, R, V, cam, layout, camGoal, updateCam, rockState, rockScreen, sx, sy, DOOM_VIEW, YOU_VIEW, migrate, movePrayer, prayerAt, inOrb, orbGeom, soundLog, SND, THROW_SOUNDS, WINDUP, synth: OsrsSynth, A };
     requestAnimationFrame(frame);
   }
 
