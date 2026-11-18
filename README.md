@@ -36,7 +36,7 @@ You always run, as you would at Doom. Both modes start you south of Doom, below 
 - A tick ruler, a tick log, pausing and single-tick stepping.
 - Tile indicators like RuneLite's plugin: your destination tile, the hovered tile and your true tile, each with its own highlight colour, fill colour and border width. Colours are RuneLite's #AARRGGBB. They default to one player's own RuneLite settings, and Settings can change or reset them.
 - Sound on or off and the volume sit at the right end of the control row under the game view.
-- The bottom of the page has short How to play steps for both modes.
+- The bottom of the page has a short Strategy section with steps for both modes.
 - Tile markers, hints, camera and zoom are in Settings. Settings and stats are saved in your browser.
 
 ## Timings
@@ -45,7 +45,7 @@ Times are in game ticks of 0.6 s. T is the tick Doom throws rock 1.
 
 | Tick | What happens |
 | --- | --- |
-| T−2 | Doom starts the throw animation for rock 1 |
+| T−2 | Doom starts the throw animation for rock 1: it rears up and lets go with a whoosh 0.76 s in, and the rock is in the air 2 ticks later, as in game |
 | T | Rock 1 is thrown |
 | T+1 | Doom starts the throw animation for rock 2 |
 | T+3 | Rock 2 is thrown |
@@ -124,7 +124,7 @@ The first command builds the bare page. The second wraps it as a complete web pa
 bash tools/run_tests.sh
 ```
 
-This builds the page, appends `test/harness-tail.html` and runs it in headless Chrome. The harness steps the sim tick by tick and runs 168 checks covering timings, damage, prayers, sounds, the rock flights, Rockblock + punish, the camera, saved settings and the page panels. If Chrome isn't at its usual Windows path, set `CHROME` to its location. Set `PYTHON` to choose the interpreter.
+This builds the page, appends `test/harness-tail.html` and runs it in headless Chrome. The harness steps the sim tick by tick and runs 170 checks covering timings, damage, prayers, sounds, the rock flights, Rockblock + punish, the camera, saved settings and the page panels. If Chrome isn't at its usual Windows path, set `CHROME` to its location. Set `PYTHON` to choose the interpreter.
 
 `test/shot-tail.html` freezes a scenario for screenshots. Append it to the built page and open the result with a hash such as `#barrage`.
 

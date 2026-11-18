@@ -379,6 +379,9 @@ window.addEventListener('load', () => setTimeout(() => {
     const uAt = (tick, id) => D.soundLog.filter(e => e.tick === tick && e.id === id);
     const uThrowAt = tick => D.THROW_SOUNDS.every(([id, d]) => uAt(tick, id).some(e => e.delay === d));
     ok(D.WINDUP === 2 && uThrowAt(uT - 2) && uThrowAt(uT + 1) && D.soundLog.filter(e => e.id === D.THROW_SOUNDS[0][0]).length === 2, 'U the throw animation sounds start two ticks before each lift, T-2 and T+1');
+    ok(D.G.bossWindupAt === uT + 1, 'U Doom also starts its visible throw animation two ticks before each lift, with those sounds');
+    const uPose = s => D.throwPose(s).lift, uWhoosh = D.THROW_SOUNDS[3][1] / 0.6;
+    ok(uPose(0) === 0 && uPose(uWhoosh) > 0.4 && uPose(uWhoosh) >= uPose(0.8) && uPose(2) < uPose(uWhoosh) && uPose(3) === 0 && D.throwPose(3.5).lift === 0, 'U Doom rears up until the whoosh, lets go, and is back at rest when the animation ends');
     ok(uAt(uT + 7, D.SND.burst).length === 1 && uAt(uT + 10, D.SND.burst).length === 1 && D.soundLog.filter(e => e.id === D.SND.burst).length === 2, 'U an explosion on each burst, T+7 and T+10');
     ok(uAt(uT + 9, D.SND.land).length === 1 && uAt(uT + 12, D.SND.land).length === 1 && D.soundLog.filter(e => e.id === D.SND.land).every(e => e.delay === 0.2), 'U an impact 0.2 s after each landing, T+9 and T+12');
     const uBar = [11, 12, 13, 14, 15, 16].map(k => D.soundLog.filter(e => e.tick === uT + k && (e.id === D.SND.impact.mage || e.id === D.SND.impact.range)).map(e => e.id).join('/')).join();
@@ -511,7 +514,7 @@ window.addEventListener('load', () => setTimeout(() => {
 
     // W: the page ends with short steps for both modes
     const wHow = document.querySelector('.howto'), wLists = wHow ? [...wHow.querySelectorAll('ol.steps')] : [];
-    ok(!!wHow && wHow.querySelector('h2').textContent === 'How to play' && wLists.length === 2 && wLists[0].children.length === 6 && wLists[1].children.length === 5 && wHow.nextElementSibling.classList.contains('credit'), 'W How to play sits at the bottom with steps for Double rock (6) and Rockblock + punish (5)');
+    ok(!!wHow && wHow.querySelector('h2').textContent === 'Strategy' && wLists.length === 2 && wLists[0].children.length === 6 && wLists[1].children.length === 5 && wHow.nextElementSibling.classList.contains('credit'), 'W the Strategy section sits at the bottom with steps for Double rock (6) and Rockblock + punish (5)');
 
     // V: sound on or off and the volume, on the control row under the game view
     const vBox = document.getElementById('bar-sound'), vSet = document.getElementById('set-sound'), vVol = document.getElementById('set-volume'), vOut = document.getElementById('set-volume-out');

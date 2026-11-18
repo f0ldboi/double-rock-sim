@@ -356,7 +356,7 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
   </div>
 
   <section class="panel howto" aria-labelledby="how-h">
-    <h2 id="how-h">How to play</h2>
+    <h2 id="how-h">Strategy</h2>
     <div class="howto-cols">
       <div>
         <h3>Double rock</h3>
@@ -548,7 +548,7 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
         target: null, spec: false, energy: 100, nextHit: 0,
       },
       boulders: new Map(), pendingBoulders: [], shadows: [], dust: [], fx: [], rocks: [], projs: [], splats: [], bossSplats: [], chat: [],
-      rep: null, repN: 0, nextRepTick: 6, bossThrowAt: -9, inputs: [], clickMark: null, mouse: null,
+      rep: null, repN: 0, nextRepTick: 6, bossWindupAt: -9, inputs: [], clickMark: null, mouse: null,
       clearBouldersAt: -1, dead: false, dying: false, deadAt: 0,
       editing: false, editSel: null, drag: null,
     };
@@ -732,7 +732,7 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
 
     if (G.rep) repStep(t - G.rep.start);
     else maybeStartRep(t);
-    if (!G.rep && t === G.nextRepTick - WINDUP) throwSounds();
+    if (!G.rep && t === G.nextRepTick - WINDUP) startThrowAnim();
     launch(t);
     if (t === G.clearBouldersAt) {
       G.boulders.clear();
@@ -779,7 +779,7 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
   function repStep(r) {
     switch (r) {
       case R.THROW1: throwRock(1); break;
-      case R.THROW2 - WINDUP: throwSounds(); break;
+      case R.THROW2 - WINDUP: startThrowAnim(); break;
       case R.THROW2: throwRock(2); break;
       case R.DIP1: log('Rock 1 dips.', 'hint', '#ffff00'); break;
       case R.BURST1: burst(1); break;
@@ -808,7 +808,6 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
 
   function throwRock(id) {
     G.rocks.push({ id, color: G.rep.color, thrown: G.tick, burst: G.tick + ROCK_FLIGHT });
-    G.bossThrowAt = G.tick;
     log(`Rock ${id} thrown. It bursts on T+${G.tick - G.rep.start + ROCK_FLIGHT}.`, '', '#ffffff');
   }
 
@@ -1134,6 +1133,19 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
     if (OUT) OUT.gain.value = volGain(S.volume);
   }
   function throwSounds() { for (const [id, at] of THROW_SOUNDS) play(id, at); }
+  // Doom's throw animation starts two ticks before each rock flies, as in the game: its pose (below) and its sounds
+  function startThrowAnim() { G.bossWindupAt = G.tick; throwSounds(); }
+  // Its pose through the 3-tick animation: it rears up until the whoosh (0.76 s in, as the rock leaves its hands),
+  // snaps forward as it lets go, and settles while the rock flies, which it is from 2 ticks in. In ticks since the
+  // animation started; lift in tiles, stretch as a share of its height.
+  function throwPose(s) {
+    if (!(s >= 0 && s < 3)) return { lift: 0, stretch: 0 };
+    const whoosh = 0.76 / 0.6, ease = x => x * x * (3 - 2 * x);
+    if (s < whoosh) { const u = ease(clamp((s - 0.25) / (whoosh - 0.25), 0, 1)); return { lift: 0.45 * u, stretch: 0.05 * u }; }
+    if (s < whoosh + 0.35) { const u = ease((s - whoosh) / 0.35); return { lift: 0.45 - 0.33 * u, stretch: 0.05 - 0.09 * u }; }
+    const u = ease(clamp((s - whoosh - 0.35) / (3 - whoosh - 0.35), 0, 1));
+    return { lift: 0.12 * (1 - u), stretch: -0.04 * (1 - u) };
+  }
   function hush() {
     for (const s of live) try { s.stop(); } catch (e) { /* already stopped */ }
     live.clear();
@@ -1882,13 +1894,12 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
 
   function drawBoss(now, ct) {
     const im = IMG.doom;
-    const sinceThrow = ct - G.bossThrowAt;
-    const lift = sinceThrow >= 0 && sinceThrow < 1.2 ? Math.sin(Math.PI * sinceThrow / 1.2) * 0.35 : 0;
+    const pose = throwPose(ct - G.bossWindupAt), lift = pose.lift;
     const bob = Math.sin(now / 650) * 0.05;
     const w = V.TS * 6.6, h = ready(im) ? w * im.naturalHeight / im.naturalWidth : w * 0.7;
     const X = sx(BOSS_C[0]), Yb = sy(BOSS.y + BOSS.s + 0.25) - (lift + bob) * V.TS;
     shadowBlob(X, sy(BOSS.y + BOSS.s - 0.4), V.TS * 3.2, V.TS * 1.1, 0.45);
-    if (ready(im)) ctx.drawImage(im, X - w / 2, Yb - h, w, h * (1 + lift * 0.03));
+    if (ready(im)) ctx.drawImage(im, X - w / 2, Yb - h * (1 + pose.stretch), w, h * (1 + pose.stretch));
     else { ctx.fillStyle = '#7a1f1f'; ctx.fillRect(sx(BOSS.x), sy(BOSS.y), BOSS.s * V.TS, BOSS.s * V.TS); }
   }
   // Rockblock + punish: the 5x5 tiles Doom stands on, tinted a soft reddish grey on the floor under it, like RuneLite's
@@ -2549,7 +2560,7 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
     exampleReport();
     syncUI();
     if (window.claude && window.claude.hot && window.claude.hot.snapshot) window.claude.hot.snapshot(() => ({ S, ST }));
-    window.__drs = { get G() { return G; }, get S() { return S; }, set S(v) { S = v; }, get ST() { return ST; }, render, doTick, queueInput, findPath, startRep, newGame, R, V, cam, layout, camGoal, updateCam, rockState, rockScreen, sx, sy, DOOM_VIEW, YOU_VIEW, migrate, movePrayer, prayerAt, specGeom, inSpec, soundLog, SND, THROW_SOUNDS, WINDUP, synth: OsrsSynth, A, RB, CHARGE, HAL, doomDist, inReach, setMode, worldTile, START, slotAt, argb, destTile, bookPrayer, TI_DEFAULTS, playerSprite, outGain: () => OUT && OUT.gain.value, volGain, audio, chargeBarGeom, onDoom };
+    window.__drs = { get G() { return G; }, get S() { return S; }, set S(v) { S = v; }, get ST() { return ST; }, render, doTick, queueInput, findPath, startRep, newGame, R, V, cam, layout, camGoal, updateCam, rockState, rockScreen, sx, sy, DOOM_VIEW, YOU_VIEW, migrate, movePrayer, prayerAt, specGeom, inSpec, soundLog, SND, THROW_SOUNDS, WINDUP, synth: OsrsSynth, A, RB, CHARGE, HAL, doomDist, inReach, setMode, worldTile, START, slotAt, argb, destTile, bookPrayer, throwPose, TI_DEFAULTS, playerSprite, outGain: () => OUT && OUT.gain.value, volGain, audio, chargeBarGeom, onDoom };
     requestAnimationFrame(frame);
   }
 
