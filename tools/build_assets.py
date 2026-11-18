@@ -1,6 +1,6 @@
 """Pack the OSRS Wiki sprites into data URIs for the sim (assets.json).
 
-usage: build_assets.py <wiki sprite dir> <run orb dir> <out.json>
+usage: build_assets.py <wiki sprite dir> <spec orb dir> <out.json>
 """
 import base64
 import json
@@ -15,6 +15,7 @@ SRC, ORB, OUT = sys.argv[1], sys.argv[2], sys.argv[3]
 ICONS = [
     'Protect from Magic', 'Protect from Missiles', 'Protect from Melee',
     'Protect from Magic overhead', 'Protect from Missiles overhead', 'Protect from Melee overhead',
+    'Protect from Magic and Missiles overhead',
     'Damage hitsplat', 'Zero damage hitsplat', 'Prayer icon',
 ]
 
@@ -39,9 +40,9 @@ for name in ICONS:
     out['icons'][name] = uri(img, '.png', [cv2.IMWRITE_PNG_COMPRESSION, 9])
     out['meta'][name] = [img.shape[1], img.shape[0]]
 
-# run orb: the PNG is the "off" state with transparency; the GIF's second frame is "on" with the same outline
-off = cv2.imread(os.path.join(ORB, 'Run_energy_orb.png'), cv2.IMREAD_UNCHANGED)
-cap = cv2.VideoCapture(os.path.join(ORB, 'Run_energy_orb.gif'))
+# special attack orb: the PNG is the orb with transparency; the GIF's second frame is the activated orb with the same outline
+off = cv2.imread(os.path.join(ORB, 'Special_attack_orb.png'), cv2.IMREAD_UNCHANGED)
+cap = cv2.VideoCapture(os.path.join(ORB, 'Special_attack_orb.gif'))
 frames = []
 while True:
     ok, f = cap.read()
@@ -50,7 +51,7 @@ while True:
     frames.append(f)
 assert len(frames) == 2 and frames[1].shape[:2] == off.shape[:2], 'unexpected orb gif'
 on = np.dstack([frames[1], off[:, :, 3]])
-for name, img in (('Run orb off', off), ('Run orb on', on)):
+for name, img in (('Special attack orb', off), ('Special attack orb on', on)):
     out['icons'][name] = uri(img, '.png', [cv2.IMWRITE_PNG_COMPRESSION, 9])
     out['meta'][name] = [img.shape[1], img.shape[0]]
 

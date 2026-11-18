@@ -2,7 +2,7 @@
 window.addEventListener("load", () => setTimeout(() => {
   const D = window.__drs;
   const sc = (location.hash || "#hover").slice(1);
-  D.S = Object.assign({}, D.S, { color: sc === "green" ? "range" : "mage", std: false, chat: true, camera: "frame", zoom: 12 });
+  D.S = Object.assign({}, D.S, { mode: "dodge", color: sc === "green" ? "range" : "mage", std: false, chat: true, camera: "frame", zoom: 12 });
   D.newGame(true);
   document.getElementById("overlay").hidden = true;
   const run = n => { for (let i = 0; i < n; i++) { D.G.stepping = true; D.doTick(performance.now()); D.G.stepping = false; } };
@@ -38,6 +38,23 @@ window.addEventListener("load", () => setTimeout(() => {
     run(1);
     if (!D.G.dead) { D.G.player.hp = 1; run(1); }
     f = 1;
+  }
+  else if (sc.startsWith("punish")) {
+    // Rockblock + punish: #punish-start (the start window), #punish-charge (T+5), #punish-hit (the Sweep on T+12)
+    D.S = Object.assign({}, D.S, { mode: "punish", death: false });
+    D.newGame(true);
+    document.getElementById("overlay").hidden = true;
+    if (sc === "punish-start") { D.newGame(false); D.setMode("dodge"); D.setMode("punish"); }
+    else if (sc === "punish-charge") { run(6 + 5); f = 0.5; }
+    else {
+      run(6 + 6); D.queueInput({ type: "move", x: D.RB.t2.x, y: D.RB.t2.y }); run(3);
+      D.queueInput({ type: "spec" }); D.queueInput({ type: "attack" }); D.queueInput({ type: "pray", style: "mage" }); run(1);
+      D.queueInput({ type: "pray", style: "range" }); run(1); run(1); f = 0.3;
+      // hold the swing and the hitsplats on screen
+      const now = performance.now();
+      D.G.fx.forEach(e => { if (e.kind === "swing") { e.dur = 1e9; e.t0 = now - 3e8; } });
+      D.G.bossSplats.forEach(s => { s.t0 = now + 1e9; });
+    }
   }
   else if (sc === "edit") {
     run(2);

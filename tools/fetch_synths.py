@@ -23,6 +23,13 @@ SOUNDS = {
     # each burst, and each rock's boulder and debris landing
     10331: 'DELVE_BOSS_STD_ROCK_ATTACK_EXPLOSION_01',
     10297: 'DELVE_BOSS_STD_ROCK_ATTACK_IMPACT_01',
+    # Doom's melee charge: DOM_BEAM_CHARGE (sequence 12408) also plays 10291 and 10292, then DOM_BEAM_CHARGE_LOOP
+    # (12409) every tick; a melee punish plays DOM_BEAM_CANCEL (12410), a full charge DOM_BEAM_FIRE (12411)
+    10363: 'DELVE_BOSS_ATTACK_BEAM_CHARGE_HISS_01',
+    10346: 'DELVE_BOSS_ATTACK_BEAM_CHARGE_02',
+    10364: 'DELVE_BOSS_ATTACK_BEAM_CANCEL_01',
+    10334: 'DELVE_BOSS_ATTACK_BEAM_FIRE_03',
+    10302: 'DELVE_BOSS_ATTACK_BEAM_FIRE_02',
     # the barrage hits reuse the Leviathan's magic and ranged impacts
     7023: 'DT2_LEVBOSS_MAGIC_IMPACT_SOUND_01',
     7026: 'DT2_LEVBOSS_RANGED_IMPACT_SOUND_01',

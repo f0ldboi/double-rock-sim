@@ -49,7 +49,7 @@ h1,h2,h3{text-wrap:balance}
 .view{position:relative;background:#000;box-shadow:0 0 0 1px #000,0 0 0 3px var(--iface-mid),0 0 0 4px #000}
 #game{display:block;width:100%;aspect-ratio:16/9;height:auto;cursor:default;touch-action:none;user-select:none}
 /* the pause card: an interface box over the side panel's column, clear of the room, sized with the interface (--ui-s) */
-.hud{position:absolute;right:calc(10px * var(--ui-s,1));top:calc(10px * var(--ui-s,1));pointer-events:none;max-width:17em;
+.hud{position:absolute;right:calc(10px * var(--ui-s,1));top:var(--hud-top,10px);pointer-events:none;max-width:17em;
   display:flex;flex-direction:column;gap:.55em;padding:.65em .85em .75em;font-size:calc(14px * var(--ui-s,1));line-height:1.2;
   background:rgba(62,53,41,.96);box-shadow:var(--bevel),0 .4em 1.4em rgba(0,0,0,.55)}
 .hud-title{margin:0;display:flex;align-items:center;gap:.55em;font:700 1.08em/1 var(--font-display);letter-spacing:.06em;text-transform:uppercase;color:var(--orange);text-shadow:1px 1px 0 #000}
@@ -90,7 +90,8 @@ h1,h2,h3{text-wrap:balance}
 .btn:hover{background:#4a3f31;color:var(--yellow)}
 .btn:disabled{opacity:.45;cursor:default}
 .btn.go{background:#5b4410;color:var(--yellow)}
-.btn.edit[aria-pressed="true"]{background:#5b4410;color:var(--yellow)}
+.btn.edit[aria-pressed="true"],.btn.mode[aria-pressed="true"]{background:#5b4410;color:var(--yellow)}
+.window:not(.punish) .is-punish{display:none}
 
 .panel{background:var(--iface);box-shadow:var(--bevel);padding:12px 14px;display:flex;flex-direction:column;gap:10px;min-width:0}
 .panel h2{margin:0;font-family:var(--font-display);font-size:var(--fs-sm);letter-spacing:.06em;text-transform:uppercase;color:var(--orange);text-shadow:1px 1px 0 #000}
@@ -196,10 +197,10 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
         <h2 id="ov-title">Survive the double rock</h2>
         <p id="ov-text">Dodge both rocks, then pray all six barrage hits. No damage is a clean rep.</p>
         <dl class="keys" id="ov-keys">
-          <dt>Walk</dt><dd><kbd>Click</kbd></dd>
-          <dt>Walk 1 tile per tick</dt><dd><kbd>Ctrl</kbd> + <kbd>Click</kbd></dd>
-          <dt>Pray</dt><dd><img class="ico" id="ov-ico-pray" alt="">Prayer book</dd>
-          <dt>Toggle run</dt><dd><img class="ico" id="ov-ico-run" alt="">Run orb</dd>
+          <dt>Run</dt><dd><kbd>Click</kbd></dd>
+          <dt>Walk</dt><dd><kbd>Ctrl</kbd> + <kbd>Click</kbd></dd>
+          <dt class="is-punish">Attack Doom</dt><dd class="is-punish"><kbd>Click</kbd> Doom</dd>
+          <dt class="is-punish">Special attack</dt><dd class="is-punish"><img class="ico" id="ov-ico-spec" alt="">Spec orb, top right</dd>
           <dt>Pause</dt><dd><kbd>Space</kbd></dd>
           <dt>Next tick</dt><dd><kbd>.</kbd></dd>
         </dl>
@@ -213,6 +214,11 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
       <button class="btn go" id="btn-play" type="button">Start</button>
       <button class="btn" id="btn-step" type="button" disabled>Next tick</button>
       <button class="btn" id="btn-restart" type="button">Restart</button>
+    </div>
+    <span class="divider" aria-hidden="true"></span>
+    <div class="controls" role="group" aria-label="Mode">
+      <button class="btn mode" id="mode-dodge" type="button" aria-pressed="true">Double rock</button>
+      <button class="btn mode" id="mode-punish" type="button" aria-pressed="false">Rockblock + punish</button>
     </div>
     <span class="divider" aria-hidden="true"></span>
     <div class="controls" role="group" aria-label="Prayer layout">
@@ -244,6 +250,7 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
           <div class="stat"><span class="v" id="st-streak">0</span><span class="l">streak</span></div>
           <div class="stat"><span class="v" id="st-best">0</span><span class="l">best streak</span></div>
           <div class="stat"><span class="v" id="st-acc">–</span><span class="l">barrage prayed</span></div>
+          <div class="stat"><span class="v" id="st-pun">–</span><span class="l">punished with Sweep</span></div>
         </div>
         <table class="dmg">
           <thead><tr><th scope="col">Damage taken</th><th scope="col">Times hit</th><th scope="col">Total</th><th scope="col">Per rep</th></tr></thead>
@@ -251,6 +258,7 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
             <tr><th scope="row">Debris</th><td id="st-n-debris">0</td><td id="st-d-debris">0</td><td id="st-a-debris">–</td></tr>
             <tr><th scope="row">Boulders</th><td id="st-n-boulder">0</td><td id="st-d-boulder">0</td><td id="st-a-boulder">–</td></tr>
             <tr><th scope="row">Barrage</th><td id="st-n-barrage">0</td><td id="st-d-barrage">0</td><td id="st-a-barrage">–</td></tr>
+            <tr><th scope="row">Beam</th><td id="st-n-beam">0</td><td id="st-d-beam">0</td><td id="st-a-beam">–</td></tr>
           </tbody>
           <tfoot><tr><th scope="row">All</th><td id="st-n-all">0</td><td id="st-d-all">0</td><td id="st-a-all">–</td></tr></tfoot>
         </table>
@@ -331,6 +339,17 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
   const LAND_DELAY = 2;
   const FIELD = 4;
   const START = { x: 17, y: 6 };
+  // Rockblock + punish is the OSRS Wiki's Double Rockblock from the east side. Tile 1 is the green tile 10 east of
+  // Doom's centre (41,37 in the wiki's Rockblock tile markers, with Doom's centre on 31,37), tile 2 is 5 tiles north of
+  // it, as in the wiki's delve 8+ setup clip. Every rep starts on tile 1.
+  const RB = { t1: { x: 22, y: 12 }, t2: { x: 22, y: 7 } };
+  // Doom's melee charge comes with the throws. On rock 2's throw it prays against magic and ranged and charges its
+  // beam, and only a melee hit stops it. The charge start and the loop each tick are from the wiki clips' audio. The
+  // beam firing on T+16 is an estimate from how fast the charge bar fills in the delve 8 clip.
+  const CHARGE = { start: 3, fire: 16, beam: 99 };
+  // crystal halberd: 2 tiles of reach, 7 ticks between attacks. Its special, Sweep, costs 30% energy and hits a large
+  // monster twice, and every hitsplat of a melee punish carries the punish bonus (23 in the wiki's example gear).
+  const HAL = { reach: 2, speed: 7, cost: 30, bonus: 23 };
   const NAME = { mage: 'Magic', range: 'Ranged', melee: 'Melee' };
   const LETTER = { mage: 'M', range: 'R', melee: 'Me' };
   const CSSVAR = { mage: '--magic', range: '--range', melee: '--melee' };
@@ -362,13 +381,14 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
 
   /* ================= settings and stats ================= */
   const DEFAULTS = {
-    v: 7, latency: 0, color: 'random', death: false, pray: DEFAULT_PRAY,
+    v: 8, mode: 'dodge', latency: 0, color: 'random', death: false, pray: DEFAULT_PRAY,
     ui: 'auto', zoom: 12, camera: 'frame',
     chat: true, trueTile: true, hover: true, grid: true, paths: true, field: false, queued: false, sound: true, metro: false,
   };
   // settings saved by earlier versions: v3 brought closer zoom steps and the camera that keeps Doom in view;
   // v4 keeps only the protection prayers (where they sat in the old book);
-  // v5 drops Doom's autos and caps the interface scale at 125%; v6 drops the death memes; v7 drops the Rockblock drill
+  // v5 drops Doom's autos and caps the interface scale at 125%; v6 drops the death memes; v7 drops the Rockblock drill;
+  // v8 adds the mode, Double rock or Rockblock + punish
   function migrate(s) {
     if (!s) return s;
     let o = { ...s };
@@ -390,7 +410,8 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
     }
     delete o.memes;
     delete o.drill;
-    o.v = 7;
+    if (o.mode !== 'punish') o.mode = 'dodge';
+    o.v = 8;
     return o;
   }
   function validPray(p) {
@@ -398,7 +419,10 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
     const v = PROTECTS.map(([st]) => p[st]);
     return v.every(n => Number.isInteger(n) && n >= 0 && n < 30) && new Set(v).size === 3;
   }
-  const freshStats = () => ({ reps: 0, clean: 0, streak: 0, best: 0, prayOk: 0, prayTotal: 0, dmg: { debris: 0, boulder: 0, barrage: 0 }, hitBy: { debris: 0, boulder: 0, barrage: 0 } });
+  const freshStats = () => ({
+    reps: 0, clean: 0, streak: 0, best: 0, prayOk: 0, prayTotal: 0, punReps: 0, punSweep: 0,
+    dmg: { debris: 0, boulder: 0, barrage: 0, beam: 0 }, hitBy: { debris: 0, boulder: 0, barrage: 0, beam: 0 },
+  });
   let S = { ...DEFAULTS };
   let ST = freshStats();
   function save() {
@@ -410,12 +434,18 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
   }
 
   let G;
+  const punishMode = () => S.mode === 'punish';
   function newGame(keepStarted) {
     hush();
+    const s0 = punishMode() ? RB.t1 : START;
     G = {
       started: !!keepStarted, running: false, stepping: false, tick: 0, tickAt: 0, lastTickAt: 0, frozenF: 1, stepAnimAt: 0,
-      player: { x: START.x, y: START.y, path: [], trail: [[START.x, START.y]], dest: null, run: true, walkPath: false, prayer: null, hp: 99, stun: 0, shovedTick: -1, face: -1 },
-      boulders: new Map(), pendingBoulders: [], shadows: [], dust: [], fx: [], rocks: [], projs: [], splats: [], chat: [],
+      // you always run; Ctrl + click walks that one path a tile per tick. In Rockblock + punish you carry a crystal halberd.
+      player: {
+        x: s0.x, y: s0.y, path: [], trail: [[s0.x, s0.y]], dest: null, run: true, walkPath: false, prayer: null, hp: 99, stun: 0, shovedTick: -1, face: -1,
+        target: null, spec: false, energy: 100, nextHit: 0,
+      },
+      boulders: new Map(), pendingBoulders: [], shadows: [], dust: [], fx: [], rocks: [], projs: [], splats: [], bossSplats: [], chat: [],
       rep: null, repN: 0, nextRepTick: 6, bossThrowAt: -9, inputs: [], clickMark: null, mouse: null,
       clearBouldersAt: -1, dead: false, dying: false, deadAt: 0,
       editing: false, editSel: null, drag: null,
@@ -496,10 +526,68 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
         P.prayer = P.prayer === inp.style ? null : inp.style;
         play(P.prayer ? SND.pray[P.prayer] : SND.prayOff);
       }
-      else if (inp.type === 'move') setDestination(inp.x, inp.y, inp.walk);
-      else if (inp.type === 'run') P.run = !P.run;
+      else if (inp.type === 'move') { P.target = null; setDestination(inp.x, inp.y, inp.walk); }
+      else if (inp.type === 'attack') attackDoom(inp.walk);
+      else if (inp.type === 'spec') toggleSpec();
     }
     G.inputs = keep;
+  }
+  // how many tiles a tile is from Doom's 5x5 body, a diagonal step counting as one
+  const doomDist = (x, y) => Math.max(BOSS.x - x, x - (BOSS.x + BOSS.s - 1), BOSS.y - y, y - (BOSS.y + BOSS.s - 1), 0);
+  const inReach = (x, y) => { const d = doomDist(x, y); return d >= 1 && d <= HAL.reach; };
+  // Attack runs you to the nearest tile in the halberd's reach, as the game paths you, and you swing once you are there
+  function attackDoom(walk) {
+    const P = G.player;
+    P.target = 'doom';
+    P.walkPath = !!walk;
+    P.path = []; P.dest = null;
+    if (inReach(P.x, P.y)) return;
+    const dist = bfs(P.x, P.y);
+    let best = null, bestScore = Infinity;
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const d = dist[x + y * W];
+      if (d < 0 || !inReach(x, y)) continue;
+      // the fewest steps, and at equal steps the full reach rather than next to Doom
+      const score = d * 2 + (doomDist(x, y) === HAL.reach ? 0 : 1);
+      if (score < bestScore) { bestScore = score; best = [x, y]; }
+    }
+    if (best) setDestination(best[0], best[1], walk);
+    else P.target = null;
+  }
+  // the spec orb arms the special for your next hit; it needs 30% energy
+  function toggleSpec() {
+    const P = G.player;
+    if (P.spec) { P.spec = false; return; }
+    if (P.energy < HAL.cost) { log('You do not have enough special attack energy left.', 'bad', '#ff3030'); return; }
+    P.spec = true;
+  }
+  // After you move: in reach of Doom with the halberd ready, you hit. A hit on the charge is the melee punish.
+  function swing() {
+    const P = G.player, rep = G.rep, t = G.tick;
+    if (P.target !== 'doom' || !inReach(P.x, P.y) || t < P.nextHit) return;
+    const sweep = P.spec && P.energy >= HAL.cost;
+    if (sweep) { P.energy -= HAL.cost; P.spec = false; }
+    P.nextHit = t + HAL.speed;
+    const punish = !!(rep && rep.charge && rep.charge.on);
+    const hits = [];
+    for (let i = 0; i < (sweep ? 2 : 1); i++) hits.push((punish ? HAL.bonus : 0) + rnd(0, sweep ? 46 : 42));
+    hits.forEach(bossSplat);
+    if (BOSS_C[0] !== P.x + 0.5) P.face = BOSS_C[0] > P.x + 0.5 ? 1 : -1;
+    G.fx.push({ kind: 'swing', sweep, t0: performance.now(), dur: sweep ? 520 : 360, seed: rnd(1, 1e6) });
+    const dealt = hits.map(hs).join(' and ');
+    if (punish) {
+      rep.charge.on = false;
+      rep.charge.punish = { r: t - rep.start, sweep, hits };
+      play(SND.cancel, SND.cancelAt);
+      log(sweep ? `Sweep punishes Doom for ${dealt}. Its beam is cancelled.` : `You punish Doom for ${dealt} without the special. Its beam is cancelled.`, sweep ? 'ok' : '', sweep ? '#7cff7c' : '#ffffff');
+    } else {
+      log(`You hit Doom for ${dealt}${sweep ? ' with Sweep, but it was not charging, so the special is spent' : ''}.`, sweep ? 'bad' : '', sweep ? '#ff3030' : '#ffffff');
+    }
+  }
+  // Rockblock + punish: before each rep you are back on tile 1 with a full special bar
+  function backToStart() {
+    const P = G.player;
+    Object.assign(P, { x: RB.t1.x, y: RB.t1.y, path: [], trail: [[RB.t1.x, RB.t1.y]], dest: null, walkPath: false, stun: 0, target: null, spec: false, energy: 100, nextHit: 0 });
   }
   function setDestination(x, y, walk) {
     const P = G.player;
@@ -533,13 +621,20 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
     else maybeStartRep(t);
     if (!G.rep && t === G.nextRepTick - WINDUP) throwSounds();
     launch(t);
-    if (t === G.clearBouldersAt) { G.boulders.clear(); if (!S.death) P.hp = 99; }
+    if (t === G.clearBouldersAt) {
+      G.boulders.clear();
+      if (!S.death) P.hp = 99;
+      if (punishMode()) backToStart();
+    }
 
-    // then you move
+    // then you move, and swing if you reached Doom
     const bx = P.x, by = P.y;
     movePlayer();
     if (P.x !== bx) P.face = P.x > bx ? 1 : -1;
     if (G.rep) G.rep.moved[t - G.rep.start] = (P.x !== bx || P.y !== by);
+    swing();
+    // the charge loop sounds on every tick the charge is still going after your swing (a punish plays the cancel instead)
+    if (G.rep && G.rep.charge && G.rep.charge.on && t - G.rep.start > CHARGE.start) play(SND.chargeLoop, SND.chargeLoopAt);
 
     if (G.dying) die();
     else if (G.rep && t - G.rep.start >= R.END) finishRep();
@@ -559,9 +654,10 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
     const other = color === 'mage' ? 'range' : 'mage';
     G.repN++;
     G.rep = {
-      n: G.repN, start: t, color, pattern: [color, other, color, color, other, color],
-      b1: null, b2: null, d1: 0, d2: 0, shadow1: null, hits: [], dmg: { debris: 0, boulder: 0, barrage: 0 }, hitBy: { debris: 0, boulder: 0, barrage: 0 },
+      n: G.repN, start: t, color, pattern: [color, other, color, color, other, color], mode: S.mode,
+      b1: null, b2: null, d1: 0, d2: 0, shadow1: null, hits: [], dmg: { debris: 0, boulder: 0, barrage: 0, beam: 0 }, hitBy: { debris: 0, boulder: 0, barrage: 0, beam: 0 },
       moved: {}, prayClicks: [], burstAt: {}, wipedEarly: false, stepped: G.stepping,
+      charge: punishMode() ? { on: false, punish: null, fired: false } : null,
     };
     log(`Rep ${G.repN}: Doom lifts a ${color === 'mage' ? 'glowing blue' : 'green'} rock.`, '', '#ffffff');
     repStep(0);
@@ -577,6 +673,24 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
       case R.BURST2: burst(2); spawnBarrage(); break;
     }
     if (r === R.DIP2) log('Rock 2 dips.', 'hint', '#ffff00');
+    if (G.rep.charge) chargeStep(r);
+  }
+  // Doom's melee charge: the overhead and the bar go up with rock 2's throw, the loop sounds every tick, and unless a
+  // melee hit lands first the beam fires on T+16
+  function chargeStep(r) {
+    const c = G.rep.charge;
+    if (r === CHARGE.start) {
+      c.on = true;
+      for (const [id, at] of SND.charge) play(id, at);
+      log('Doom prays against magic and ranged and charges its beam. Only a melee hit stops it.', '', '#ff981f');
+    } else if (c.on && r === CHARGE.fire) {
+      c.on = false;
+      c.fired = true;
+      for (const [id, at] of SND.beam) play(id, at);
+      G.fx.push({ kind: 'beam', t0: performance.now(), dur: 750 });
+      hurt(CHARGE.beam, 'beam');
+      log(`Doom's beam hits you for ${hs(CHARGE.beam)}. A melee hit before the bar fills cancels it.`, 'bad', '#ff3030');
+    }
   }
 
   function throwRock(id) {
@@ -719,10 +833,13 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
   }
 
   // add a finished (or fatal) rep to the session: its damage, the barrage hits that resolved, the streak
+  // Rockblock + punish grades the setup too: each boulder on its tile and the charge punished with Sweep
+  const onTile = (b, t) => !!b && b.x === t.x && b.y === t.y;
+  const setupDone = rep => onTile(rep.b1, RB.t1) && onTile(rep.b2, RB.t2) && !!(rep.charge.punish && rep.charge.punish.sweep);
   function recordRep(rep, died) {
     const total = Object.values(rep.dmg).reduce((a, b) => a + b, 0);
     const resolved = rep.hits.filter(Boolean);
-    const clean = !died && total === 0;
+    const clean = !died && total === 0 && (!rep.charge || setupDone(rep));
     rep.total = total;
     rep.clean = clean;
     rep.died = died;
@@ -730,6 +847,7 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
     for (const k of Object.keys(ST.dmg)) { ST.dmg[k] += rep.dmg[k] || 0; ST.hitBy[k] += rep.hitBy[k] || 0; }
     ST.prayOk += resolved.filter(h => h.ok).length;
     ST.prayTotal += resolved.length;
+    if (rep.charge) { ST.punReps++; if (rep.charge.punish && rep.charge.punish.sweep) ST.punSweep++; }
     if (clean) { ST.clean++; ST.streak++; ST.best = Math.max(ST.best, ST.streak); } else ST.streak = 0;
     save();
     renderReport(rep, false);
@@ -739,9 +857,21 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
     const rep = G.rep;
     G.rep = null;
     const { total, clean } = recordRep(rep, false);
-    G.nextRepTick = G.tick + rnd(5, 8);
-    G.clearBouldersAt = G.tick + 4;
-    log(clean ? `Rep ${rep.n} clean!` : `Rep ${rep.n} done. You took ${hs(total)} damage.`, clean ? 'ok' : 'bad', clean ? '#7cff7c' : '#ff3030');
+    // in Rockblock + punish you are put back on tile 1 three ticks before the next throw animation at the earliest
+    G.nextRepTick = G.tick + (punishMode() ? rnd(8, 10) : rnd(5, 8));
+    G.clearBouldersAt = G.tick + (punishMode() ? 3 : 4);
+    const short = rep.charge && !setupDone(rep) ? ` ${repMisses(rep)}.` : '';
+    log(clean ? `Rep ${rep.n} clean!` : `Rep ${rep.n} done. You took ${hs(total)} damage.${short}`, clean ? 'ok' : 'bad', clean ? '#7cff7c' : '#ff3030');
+  }
+  // what a Rockblock + punish rep missed, for the log
+  function repMisses(rep) {
+    const miss = [];
+    if (!onTile(rep.b1, RB.t1)) miss.push('boulder 1 off tile 1');
+    if (!onTile(rep.b2, RB.t2)) miss.push('boulder 2 off tile 2');
+    const p = rep.charge.punish;
+    if (!p) miss.push('no punish');
+    else if (!p.sweep) miss.push('punished without Sweep');
+    return miss.length ? miss.join(', ').replace(/^./, c => c.toUpperCase()) : '';
   }
 
   function die() {
@@ -762,6 +892,11 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
     const now = performance.now();
     G.splats = G.splats.filter(s => now - s.t0 < 1200);
     G.splats.push({ d, t0: now, slot: G.splats.length % 4 });
+  }
+  function bossSplat(d) {
+    const now = performance.now();
+    G.bossSplats = G.bossSplats.filter(s => now - s.t0 < 1200);
+    G.bossSplats.push({ d, t0: now, slot: G.bossSplats.length % 4 });
   }
   // Damage in a message is wrapped by hs(); the page draws it as a hitsplat, the in-game chat as a plain number
   const DMG = '\uE000';
@@ -826,6 +961,10 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
     impact: { mage: 7023, range: 7026 },              // the barrage reuses the Leviathan's magic and ranged impacts
     pray: { mage: 2675, range: 2677, melee: 2676 }, prayOff: 2663,
     hurt: [513, 514, 515, 516, 517], death: 512,
+    // Doom's melee charge, from its animations' frame sounds: DOM_BEAM_CHARGE (12408) hisses and grunts, the loop
+    // (12409) sounds 0.04 s into every tick, DOM_BEAM_CANCEL (12410) plays on a punish and DOM_BEAM_FIRE (12411) on the beam
+    charge: [[10363, 0.04], [10291, 0.32], [10292, 0.44]], chargeLoop: 10346, chargeLoopAt: 0.04,
+    cancel: 10364, cancelAt: 0.08, beam: [[10334, 0.08], [10302, 0.42]],
   };
   // DOM_ROCK_THROW_ATTACK (sequence 12407) runs in 20 ms frames, with sounds on frames 6, 18, 27, 38 (the rock leaves Doom's hands) and 73
   const THROW_SOUNDS = [[10362, 0.12], [10291, 0.36], [10292, 0.54], [10371, 0.76], [10338, 1.46]];
@@ -1120,6 +1259,8 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
     cv.height = Math.round(V.ch * V.dpr);
     V.ui = S.ui === 'auto' ? clamp((V.ch * 0.62) / PANEL_H, 0.55, 1.25) : Math.min(1.25, Number(S.ui) || 1);
     cv.parentElement.style.setProperty('--ui-s', clamp(V.ui, 0.8, 1.15).toFixed(3));
+    // the pause card sits under the spec orb when there is one
+    cv.parentElement.style.setProperty('--hud-top', Math.round(punishMode() ? 52 * V.ui : 10 * clamp(V.ui, 0.8, 1.15)) + 'px');
     V.pw = PANEL_W * V.ui; V.ph = PANEL_H * V.ui;
     V.px = V.cw - V.pw; V.py = V.ch - V.ph;
     V.TS0 = Math.max(14, V.ch / S.zoom);
@@ -1310,6 +1451,7 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
       for (let y = y0; y <= y1; y++) { const q = Math.round(sy(y)) + 0.5; ctx.moveTo(sx(x0), q); ctx.lineTo(sx(x1), q); }
       ctx.stroke();
     }
+    if (punishMode()) drawRockblockMarks();
 
     // landed debris: dust and pebbles that linger until the next landing
     for (const d of G.dust) {
@@ -1470,6 +1612,35 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
           const a = hash(e.seed + i) * Math.PI * 2, d = TS * (0.15 + 0.65 * u);
           ctx.fillRect(X + Math.cos(a) * d - TS * 0.04, Y + Math.sin(a) * d - TS * 0.04, TS * 0.08, TS * 0.08);
         }
+      } else if (e.kind === 'swing') {
+        // the halberd swung through Doom from where you stand: Sweep's wide pink arc, or a plain slash
+        const X = sx(pp[0] + 0.5), Y = sy(pp[1] + 0.5) - TS * 0.85;
+        const near = [clamp(pp[0] + 0.5, BOSS.x, BOSS.x + BOSS.s), clamp(pp[1] + 0.5, BOSS.y, BOSS.y + BOSS.s)];
+        const ang = Math.atan2(sy(near[1]) - TS * 0.85 - Y, sx(near[0]) - X);
+        const span = e.sweep ? 2.3 : 1.3, R1 = TS * (e.sweep ? 2.1 : 1.6), a0 = ang - span / 2;
+        const reveal = clamp(u / 0.45, 0, 1), fade = 1 - clamp((u - 0.45) / 0.55, 0, 1);
+        const col = e.sweep ? [255, 92, 170] : [235, 235, 235];
+        ctx.save();
+        ctx.lineCap = 'round';
+        for (let i = 0; i < 3; i++) {
+          ctx.strokeStyle = rgba(i === 2 ? [255, 236, 246] : col, (i === 0 ? 0.25 : i === 1 ? 0.7 : 0.9) * fade);
+          ctx.lineWidth = TS * (i === 0 ? 0.55 : i === 1 ? 0.28 : 0.09);
+          ctx.beginPath(); ctx.arc(X, Y, R1, a0, a0 + span * reveal); ctx.stroke();
+        }
+        ctx.restore();
+      } else if (e.kind === 'beam') {
+        // the Special Beam Cannon, from Doom's head to you
+        const im = IMG.doom, w = TS * 6.6, h = ready(im) ? w * im.naturalHeight / im.naturalWidth : w * 0.7;
+        const X0 = sx(BOSS_C[0]), Y0 = sy(BOSS.y + BOSS.s + 0.25) - h * 0.62;
+        const X1 = sx(pp[0] + 0.5), Y1 = sy(pp[1] + 0.5) - TS * 0.9;
+        const a = u < 0.15 ? u / 0.15 : 1 - (u - 0.15) / 0.85;
+        ctx.save();
+        ctx.lineCap = 'round';
+        for (const [wd, c, al] of [[0.9, [255, 170, 40], 0.35], [0.45, [255, 214, 90], 0.8], [0.16, [255, 255, 230], 1]]) {
+          ctx.strokeStyle = rgba(c, al * a); ctx.lineWidth = TS * wd;
+          ctx.beginPath(); ctx.moveTo(X0, Y0); ctx.lineTo(X1, Y1); ctx.stroke();
+        }
+        ctx.restore();
       } else if (e.kind === 'puff') {
         const X = sx(e.x), Y = sy(e.y + 0.05);
         const s = e.big ? 1.4 : 1;
@@ -1488,15 +1659,16 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
 
     // overhead, health bar and hitsplats
     drawOverheads(pp, now);
+    drawDoomCharge(ct, now);
 
-    // OSRS yellow click cross
+    // OSRS click cross: yellow for walking, red for an attack
     if (G.clickMark) {
       const age = (now - G.clickMark.t0) / 400;
       if (age >= 0 && age < 1) {
         const r = (10 - age * 6) * ui, X = G.clickMark.x, Y = G.clickMark.y;
         ctx.lineCap = 'round';
         for (const pass of [0, 1]) {
-          ctx.strokeStyle = pass ? '#ffff00' : '#000'; ctx.lineWidth = pass ? 2 * ui : 4 * ui;
+          ctx.strokeStyle = pass ? (G.clickMark.red ? '#ff1a1a' : '#ffff00') : '#000'; ctx.lineWidth = pass ? 2 * ui : 4 * ui;
           ctx.beginPath();
           ctx.moveTo(X - r, Y - r); ctx.lineTo(X - r * 0.35, Y - r * 0.35); ctx.moveTo(X + r, Y - r); ctx.lineTo(X + r * 0.35, Y - r * 0.35);
           ctx.moveTo(X - r, Y + r); ctx.lineTo(X - r * 0.35, Y + r * 0.35); ctx.moveTo(X + r, Y + r); ctx.lineTo(X + r * 0.35, Y + r * 0.35);
@@ -1509,8 +1681,57 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
     drawChat(pp, dt);
     drawMouseText();
     drawMetronome(f);
-    drawRunOrb();
+    drawSpecOrb();
     drawPanel(now);
+  }
+
+  // Rockblock + punish markers, like RuneLite's: tiles 1 and 2 in green, and the halberd's reach around Doom
+  function drawRockblockMarks() {
+    const TS = V.TS, r = HAL.reach;
+    ctx.save();
+    ctx.setLineDash([TS * 0.2, TS * 0.13]);
+    ctx.lineWidth = Math.max(1.5, TS * 0.045);
+    ctx.strokeStyle = 'rgba(255,152,31,0.6)';
+    ctx.strokeRect(Math.round(sx(BOSS.x - r)) + 0.5, Math.round(sy(BOSS.y - r)) + 0.5, Math.round((BOSS.s + 2 * r) * TS), Math.round((BOSS.s + 2 * r) * TS));
+    ctx.restore();
+    ctx.font = `700 ${Math.round(TS * 0.36)}px Barlow, Arial, sans-serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    for (const [label, t] of [['1', RB.t1], ['2', RB.t2]]) {
+      const x = Math.round(sx(t.x)), y = Math.round(sy(t.y));
+      ctx.fillStyle = 'rgba(0,255,58,0.12)'; ctx.fillRect(x + 1, y + 1, TS - 2, TS - 2);
+      ctx.strokeStyle = '#00ff3a'; ctx.lineWidth = 2; ctx.strokeRect(x + 2, y + 2, TS - 4, TS - 4);
+      ctx.fillStyle = '#000'; ctx.fillText(label, x + TS / 2 + 1, y + TS / 2 + 1);
+      ctx.fillStyle = '#ffffff'; ctx.fillText(label, x + TS / 2, y + TS / 2);
+    }
+  }
+  // Doom's melee charge as the game shows it: the Protect from Magic and Missiles overhead, and the yellow charge bar
+  // filling over its dark track; plus the hitsplats you put on it
+  function drawDoomCharge(ct, now) {
+    const ui = V.ui, TS = V.TS, rep = G.rep;
+    const im = IMG.doom, w = TS * 6.6, h = ready(im) ? w * im.naturalHeight / im.naturalWidth : w * 0.7;
+    const X = sx(BOSS_C[0]), top = sy(BOSS.y + BOSS.s + 0.25) - h;
+    ctx.imageSmoothingEnabled = false;
+    if (rep && rep.charge && rep.charge.on) {
+      const u = clamp((ct - rep.start - CHARGE.start) / (CHARGE.fire - CHARGE.start), 0, 1);
+      const bw = Math.round(60 * ui), bh = Math.max(3, Math.round(5 * ui)), s = Math.round(25 * ui);
+      const by = Math.round(Math.max(V.ry0 + s + 6 * ui, top + 10 * ui)), bx = Math.round(X - bw / 2);
+      ctx.fillStyle = '#000'; ctx.fillRect(bx - 1, by - 1, bw + 2, bh + 2);
+      ctx.fillStyle = '#302a00'; ctx.fillRect(bx, by, bw, bh);
+      ctx.fillStyle = '#d8dc1c'; ctx.fillRect(bx, by, Math.round(bw * u), bh);
+      const ov = IMG['Protect from Magic and Missiles overhead'];
+      if (ready(ov)) ctx.drawImage(ov, Math.round(X - s / 2), by - s - Math.round(3 * ui), s, s);
+    }
+    G.bossSplats = G.bossSplats.filter(s => now - s.t0 < 1200);
+    const OFF = [[0, 0], [0, -20], [-14, 10], [14, 10]];
+    const cy = sy(BOSS_C[1]) - TS * 1.2;
+    for (const s of G.bossSplats) {
+      const hs = IMG['Damage hitsplat'];
+      const sw = 24 * ui * 1.15, sh = 23 * ui * 1.15;
+      const x = X + OFF[s.slot][0] * ui, y = cy + OFF[s.slot][1] * ui;
+      if (ready(hs)) ctx.drawImage(hs, Math.round(x - sw / 2), Math.round(y - sh / 2), Math.round(sw), Math.round(sh));
+      bitText(ctx, String(s.d), Math.round(x), Math.round(y + ui), pxs(1.1), '#ffffff', 'center');
+    }
+    ctx.imageSmoothingEnabled = true;
   }
 
   function drawBoss(now, ct) {
@@ -1610,8 +1831,9 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
       if (!st) return;
       if (G.editing) parts = [['Move ', '#ffffff'], [PRAY_NAME[st], '#ff9040']];
       else parts = [[G.player.prayer === st ? 'Deactivate ' : 'Activate ', '#ffffff'], [PRAY_NAME[st], '#ff9040']];
-    } else if (inOrb(mx, my)) parts = [['Toggle Run', '#ffffff']];
+    } else if (inSpec(mx, my)) parts = [['Use ', '#ffffff'], ['Special Attack', '#ff9040']];
     else if (G.editing) return;
+    else if (punishMode() && isBoss(...worldTile(mx, my))) parts = [['Attack ', '#ffffff'], ['Doom of Mokhaiotl', '#ffff00']];
     else parts = [['Walk here', '#ffffff']];
     const ui = V.ui;
     ctx.font = `700 ${Math.round(13 * ui)}px Barlow, Arial, sans-serif`;
@@ -1693,23 +1915,31 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
     void now;
   }
 
-  // the run orb above the side panel, as on the minimap, with its energy plate on the left
-  function orbGeom() { const ui = V.ui, r = 17 * ui; return { x: V.cw - 10 * ui - r, y: V.py - 12 * ui - r, r }; }
-  function inOrb(mx, my) { const o = orbGeom(); return Math.hypot(mx - o.x, my - o.y) <= o.r; }
-  function drawRunOrb() {
-    const ui = V.ui, o = orbGeom();
+  // Rockblock + punish: the special attack orb at the top right, where the game has it by the minimap, with its
+  // energy plate on the left. It lights up while the special is armed.
+  function specGeom() { const ui = V.ui, r = 17 * ui; return { x: V.cw - 10 * ui - r, y: 10 * ui + r, r }; }
+  function inSpec(mx, my) { if (!punishMode()) return false; const o = specGeom(); return Math.hypot(mx - o.x, my - o.y) <= o.r; }
+  function drawSpecOrb() {
+    if (!punishMode()) return;
+    const ui = V.ui, o = specGeom(), P = G.player;
     const w = Math.round(30 * ui), h = Math.round(17 * ui), x = Math.round(o.x - o.r - w + 5 * ui), y = Math.round(o.y - h / 2);
     ctx.fillStyle = '#000'; ctx.fillRect(x - 1, y - 1, w + 2, h + 2);
     ctx.fillStyle = '#3b3428'; ctx.fillRect(x, y, w, h);
     ctx.fillStyle = '#5a5142'; ctx.fillRect(x, y, w, Math.max(1, Math.round(ui)));
-    bitText(ctx, '100', x + (w - 5 * ui) / 2, o.y + ui, pxs(0.9), '#00ff00', 'center');
-    const im = IMG[G.player.run ? 'Run orb on' : 'Run orb off'];
+    // the game tints orb numbers from green when full through yellow to red when empty
+    const e = clamp(P.energy / 100, 0, 1), col = `rgb(${Math.round(255 * Math.min(1, 2 - 2 * e))},${Math.round(255 * Math.min(1, 2 * e))},0)`;
+    bitText(ctx, String(P.energy), x + (w - 5 * ui) / 2, o.y + ui, pxs(0.9), col, 'center');
+    const im = IMG[P.spec ? 'Special attack orb on' : 'Special attack orb'];
     ctx.imageSmoothingEnabled = false;
     if (ready(im)) ctx.drawImage(im, Math.round(o.x - o.r), Math.round(o.y - o.r), Math.round(o.r * 2), Math.round(o.r * 2));
     ctx.imageSmoothingEnabled = true;
-    if (S.queued && G.inputs.some(q => q.type === 'run')) {
+    if (P.spec) {
+      ctx.strokeStyle = 'rgba(255,255,0,0.9)'; ctx.lineWidth = Math.max(1.5, 1.5 * ui);
+      ctx.beginPath(); ctx.arc(o.x, o.y, o.r + 1.5 * ui, 0, Math.PI * 2); ctx.stroke();
+    }
+    if (S.queued && G.inputs.some(q => q.type === 'spec')) {
       ctx.setLineDash([3 * ui, 2 * ui]); ctx.strokeStyle = '#ffff00'; ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.arc(o.x, o.y, o.r + 2 * ui, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+      ctx.beginPath(); ctx.arc(o.x, o.y, o.r + 4 * ui, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
     }
   }
 
@@ -1733,18 +1963,25 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
   function worldTile(mx, my) { return [Math.floor((mx - V.ax) / V.TS + cam.x), Math.floor((my - V.ay) / V.TS + cam.y)]; }
 
   /* ================= tick ruler ================= */
-  const RULER = [
-    { r: 0, ev: 'Throw 1', sub: 'on your spot' }, { r: 1 }, { r: 2 },
-    { r: 3, ev: 'Throw 2' }, { r: 4 }, { r: 5 },
-    { r: 6, ev: 'Dip 1', sub: 'click your exit', key: true },
-    { r: 7, ev: 'Burst 1', sub: 'prayer off' }, { r: 8, sub: 'last step that counts' },
-    { r: 9, ev: 'Land 1', sub: 'dip 2' },
-    { r: 10, ev: 'Burst 2', sub: 'pray now', key: true },
-    { r: 11, hit: 0 }, { r: 12, hit: 1, sub: 'land 2' }, { r: 13, hit: 2 }, { r: 14, hit: 3 }, { r: 15, hit: 4 }, { r: 16, hit: 5 },
-  ];
+  function rulerFor(mode) {
+    const p = mode === 'punish';
+    return [
+      { r: 0, ev: 'Throw 1', sub: p ? 'on tile 1' : 'on your spot' }, { r: 1 }, { r: 2 },
+      { r: 3, ev: 'Throw 2', sub: p ? 'charge starts' : undefined }, { r: 4 }, { r: 5 },
+      { r: 6, ev: 'Dip 1', sub: p ? 'click tile 2' : 'click your exit', key: true },
+      { r: 7, ev: 'Burst 1', sub: 'prayer off' }, { r: 8, sub: 'last step that counts' },
+      { r: 9, ev: 'Land 1', sub: p ? 'dip 2: spec on, click Doom' : 'dip 2', key: p },
+      { r: 10, ev: 'Burst 2', sub: 'pray now', key: true },
+      { r: 11, hit: 0 }, { r: 12, hit: 1, sub: 'land 2' }, { r: 13, hit: 2 }, { r: 14, hit: 3 },
+      { r: 15, hit: 4, sub: p ? 'last tick to punish' : undefined }, { r: 16, hit: 5, sub: p ? 'beam fires' : undefined },
+    ];
+  }
+  let RULER = [];
   const rulerEl = $('#ruler');
   const rulerCells = [];
   function buildRuler() {
+    RULER = rulerFor(S.mode);
+    rulerCells.length = 0;
     rulerEl.innerHTML = '';
     for (const c of RULER) {
       const d = document.createElement('div');
@@ -1781,6 +2018,8 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
     $('#btn-edit').setAttribute('aria-pressed', String(G.editing));
     $('#btn-edit').textContent = G.editing ? 'Done' : 'Arrange prayers';
     $('#btn-reset-layout').hidden = !G.editing;
+    $('#mode-dodge').setAttribute('aria-pressed', String(!punishMode()));
+    $('#mode-punish').setAttribute('aria-pressed', String(punishMode()));
     $('#paused').hidden = !G.editing && !(G.started && !G.running && !G.dead);
     $('#paused').classList.toggle('edit', G.editing);
     $('#hud-title').textContent = G.editing ? 'Arrange prayers' : 'Paused';
@@ -1793,9 +2032,10 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
     $('#st-streak').textContent = ST.streak;
     $('#st-best').textContent = ST.best;
     $('#st-acc').textContent = ST.prayTotal ? Math.round(ST.prayOk / ST.prayTotal * 100) + '%' : '–';
+    $('#st-pun').textContent = ST.punReps ? Math.round(ST.punSweep / ST.punReps * 100) + '%' : '–';
     const per = v => !ST.reps ? '–' : splatHTML(v ? (v / ST.reps).toFixed(1) : 0);
     let all = 0, times = 0;
-    for (const k of ['debris', 'boulder', 'barrage']) {
+    for (const k of ['debris', 'boulder', 'barrage', 'beam']) {
       const v = ST.dmg[k] || 0, n = ST.hitBy[k] || 0;
       all += v;
       times += n;
@@ -1839,12 +2079,30 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
     const e1 = exitNote(rep, R.DIP1, R.BURST1), e2 = exitNote(rep, R.DIP2, R.BURST2), pn = prayNote(rep);
     let h = `<div class="rep-head"><span class="rep-n">${example ? 'What you will see' : 'Rep ' + rep.n}</span>${verdict}</div>`;
     h += '<ul class="rep-list">';
-    h += line('Rock 1 exit', e1.ok, e1.txt);
-    h += line('Boulder 1', !(rep.b1 && rep.b1.hit), rep.b1 && rep.b1.hit ? `landed on you ${splatHTML(rep.b1.hit)}` : 'clear');
-    h += line('Debris 1', !rep.d1, rep.d1 ? `landed on you ${splatHTML(rep.d1)}` : 'clear');
-    h += line('Rock 2 exit', e2.ok, e2.txt);
-    h += line('Boulder 2', !(rep.b2 && rep.b2.hit), rep.b2 && rep.b2.hit ? `landed on you ${splatHTML(rep.b2.hit)}` : 'clear');
-    h += line('Debris 2', !rep.d2, rep.d2 ? `landed on you ${splatHTML(rep.d2)}` : 'clear');
+    if (rep.charge) {
+      // Rockblock + punish: where each boulder went, what landed on you, and the punish
+      const placed = (b, t, n) => {
+        if (!b) return { ok: false, txt: '–' };
+        const off = Math.max(Math.abs(b.x - t.x), Math.abs(b.y - t.y));
+        const where = off ? `${off} tile${off > 1 ? 's' : ''} off tile ${n}` : `on tile ${n}`;
+        return { ok: !off && !b.hit, txt: b.hit ? `${where}, landed on you ${splatHTML(b.hit)}` : where };
+      };
+      const p1 = placed(rep.b1, RB.t1, 1), p2 = placed(rep.b2, RB.t2, 2), pu = rep.charge.punish;
+      h += line('Boulder 1', p1.ok, p1.txt);
+      h += line('Debris 1', !rep.d1, rep.d1 ? `landed on you ${splatHTML(rep.d1)}` : 'clear');
+      h += line('Boulder 2', p2.ok, p2.txt);
+      h += line('Debris 2', !rep.d2, rep.d2 ? `landed on you ${splatHTML(rep.d2)}` : 'clear');
+      h += line('Punish', pu ? (pu.sweep ? true : null) : false,
+        pu ? `${pu.sweep ? 'Sweep' : 'no special'} on T+${pu.r} ${pu.hits.map(splatHTML).join(' ')}`
+          : rep.charge.fired ? `missed, beam hit you ${splatHTML(CHARGE.beam)}` : 'missed');
+    } else {
+      h += line('Rock 1 exit', e1.ok, e1.txt);
+      h += line('Boulder 1', !(rep.b1 && rep.b1.hit), rep.b1 && rep.b1.hit ? `landed on you ${splatHTML(rep.b1.hit)}` : 'clear');
+      h += line('Debris 1', !rep.d1, rep.d1 ? `landed on you ${splatHTML(rep.d1)}` : 'clear');
+      h += line('Rock 2 exit', e2.ok, e2.txt);
+      h += line('Boulder 2', !(rep.b2 && rep.b2.hit), rep.b2 && rep.b2.hit ? `landed on you ${splatHTML(rep.b2.hit)}` : 'clear');
+      h += line('Debris 2', !rep.d2, rep.d2 ? `landed on you ${splatHTML(rep.d2)}` : 'clear');
+    }
     h += line('Prayer', pn.ok, pn.txt);
     h += '</ul><div class="barrage">';
     rep.pattern.forEach((st, i) => {
@@ -1855,10 +2113,12 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
     el.innerHTML = h + '</div>';
   }
   function exampleReport() {
+    const punish = punishMode();
     renderReport({
       n: 0, color: 'mage', pattern: ['mage', 'range', 'mage', 'mage', 'range', 'mage'], total: 38, clean: false,
-      b1: { hit: 0 }, b2: { hit: 0 }, d1: 0, d2: 17, moved: { 7: true, 8: true, 10: true }, stepped: true, burstAt: {}, prayClicks: [], wipedEarly: false,
+      b1: { ...RB.t1, hit: 0 }, b2: { x: RB.t2.x, y: RB.t2.y + 1, hit: 0 }, d1: 0, d2: 17, moved: { 7: true, 8: true, 10: true }, stepped: true, burstAt: {}, prayClicks: [], wipedEarly: false,
       hits: [{ ok: true }, { ok: true }, { ok: true }, { ok: false, d: 21 }, { ok: true }, { ok: true }],
+      charge: punish ? { punish: { r: 12, sweep: true, hits: [41, 58] }, fired: false } : null,
     }, true);
   }
 
@@ -1867,9 +2127,12 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
     const ov = $('#overlay');
     if (!kind) { ov.hidden = true; return; }
     ov.hidden = false;
+    ov.querySelector('.window').classList.toggle('punish', punishMode());
     if (kind === 'start') {
-      $('#ov-title').textContent = 'Survive the double rock';
-      $('#ov-text').textContent = 'Dodge both rocks, then pray all six barrage hits. No damage is a clean rep.';
+      $('#ov-title').textContent = punishMode() ? 'Double rockblock + punish' : 'Survive the double rock';
+      $('#ov-text').textContent = punishMode()
+        ? 'Put each boulder on its green tile, then punish Doom\'s charge with a crystal halberd special. Pray the barrage on the way.'
+        : 'Dodge both rocks, then pray all six barrage hits. No damage is a clean rep.';
       $('#ov-keys').hidden = false;
       $('#ov-go').textContent = 'Click here to play';
     } else if (kind === 'dead') {
@@ -1945,9 +2208,22 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
       G.editSel = null;
     } else G.editSel = G.editSel === d.style ? null : d.style;
   }
-  function toggleRun() {
-    if (G.started && !G.dead) queueInput({ type: 'run' });
-    else G.player.run = !G.player.run;
+  // switching mode starts a fresh run in that mode
+  function setMode(mode) {
+    if (S.mode === mode) return;
+    S.mode = mode;
+    save();
+    const wasStarted = G.started;
+    newGame(wasStarted);
+    buildRuler();
+    exampleReport();
+    layout();
+    showOverlay(wasStarted ? null : 'start');
+    if (wasStarted) {
+      log(mode === 'punish' ? 'Rockblock + punish. Every rep starts on tile 1.' : 'Double rock.', 'hint');
+      resume();
+    }
+    syncUI();
   }
   function setEditing(on) {
     G.editing = on;
@@ -1963,11 +2239,12 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
       G.mouse = [mx, my];
       if (inPanel(mx, my)) { e.preventDefault(); panelDown(mx, my, e); return; }
       if (G.editing) return;
-      if (inOrb(mx, my)) { e.preventDefault(); toggleRun(); return; }
+      if (inSpec(mx, my)) { e.preventDefault(); if (G.started && !G.dead) queueInput({ type: 'spec' }); return; }
       if (!G.started || G.dead) return;
-      const [tx, ty] = worldTile(mx, my);
-      G.clickMark = { x: mx, y: my, t0: performance.now() };
-      queueInput({ type: 'move', x: tx, y: ty, walk: e.ctrlKey || e.metaKey });
+      const [tx, ty] = worldTile(mx, my), walk = e.ctrlKey || e.metaKey;
+      const attack = punishMode() && isBoss(tx, ty);
+      G.clickMark = { x: mx, y: my, t0: performance.now(), red: attack };
+      queueInput(attack ? { type: 'attack', walk } : { type: 'move', x: tx, y: ty, walk });
     });
     cv.addEventListener('pointermove', e => {
       G.mouse = localXY(e);
@@ -1991,14 +2268,15 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
     });
     $('#btn-reset-stats').addEventListener('click', () => { ST = freshStats(); save(); syncStats(); });
     $('#btn-edit').addEventListener('click', () => setEditing(!G.editing));
+    $('#mode-dodge').addEventListener('click', () => setMode('dodge'));
+    $('#mode-punish').addEventListener('click', () => setMode('punish'));
     $('#btn-reset-layout').addEventListener('click', () => { S.pray = { ...DEFAULT_PRAY }; G.editSel = null; save(); });
 
     document.addEventListener('keydown', e => {
       const tag = (e.target && e.target.tagName || '').toLowerCase();
       if (tag === 'select' || tag === 'input' || tag === 'textarea' || e.altKey || e.metaKey || (e.ctrlKey && e.key !== 'Control')) return;
       const k = e.key.toLowerCase();
-      if (k === 'r') { if (G.started) queueInput({ type: 'run' }); }
-      else if (k === ' ') { if (G.started && !G.dead && !G.editing) { e.preventDefault(); togglePause(); } }
+      if (k === ' ') { if (G.started && !G.dead && !G.editing) { e.preventDefault(); togglePause(); } }
       else if (k === '.' || k === 'n') { if (G.started && !G.running) { e.preventDefault(); step(); } }
       else if (k === 'escape') { if (G.editing) setEditing(false); else pause(); }
     });
@@ -2030,8 +2308,7 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
     chk('#set-paths', 'paths'); chk('#set-queued', 'queued'); chk('#set-chat', 'chat');
     chk('#set-sound', 'sound'); chk('#set-metro', 'metro');
     $('#set-sound').addEventListener('change', () => { if (S.sound) warmAudio(); else hush(); });
-    $('#ov-ico-pray').src = A.icons['Prayer icon'];
-    $('#ov-ico-run').src = A.icons['Run orb on'];
+    $('#ov-ico-spec').src = A.icons['Special attack orb'];
     document.documentElement.style.setProperty('--hs-red', `url("${A.icons['Damage hitsplat']}")`);
     document.documentElement.style.setProperty('--hs-blue', `url("${A.icons['Zero damage hitsplat']}")`);
 
@@ -2056,10 +2333,11 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
     buildRuler();
     bind();
     layout();
+    showOverlay('start');
     exampleReport();
     syncUI();
     if (window.claude && window.claude.hot && window.claude.hot.snapshot) window.claude.hot.snapshot(() => ({ S, ST }));
-    window.__drs = { get G() { return G; }, get S() { return S; }, set S(v) { S = v; }, get ST() { return ST; }, render, doTick, queueInput, findPath, startRep, newGame, R, V, cam, layout, camGoal, updateCam, rockState, rockScreen, sx, sy, DOOM_VIEW, YOU_VIEW, migrate, movePrayer, prayerAt, inOrb, orbGeom, soundLog, SND, THROW_SOUNDS, WINDUP, synth: OsrsSynth, A };
+    window.__drs = { get G() { return G; }, get S() { return S; }, set S(v) { S = v; }, get ST() { return ST; }, render, doTick, queueInput, findPath, startRep, newGame, R, V, cam, layout, camGoal, updateCam, rockState, rockScreen, sx, sy, DOOM_VIEW, YOU_VIEW, migrate, movePrayer, prayerAt, specGeom, inSpec, soundLog, SND, THROW_SOUNDS, WINDUP, synth: OsrsSynth, A, RB, CHARGE, HAL, doomDist, inReach, setMode, worldTile };
     requestAnimationFrame(frame);
   }
 

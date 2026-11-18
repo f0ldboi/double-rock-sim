@@ -12,7 +12,7 @@ window.addEventListener('load', () => setTimeout(() => {
     const k = (x, y) => x + ',' + y;
 
     // A: stand still with Magic on before the throw
-    D.S = Object.assign({}, D.S, { color: 'mage', std: false, mode: 'survive', death: false, debris: 18 });
+    D.S = Object.assign({}, D.S, { color: 'mage', std: false, mode: 'dodge', death: false, debris: 18 });
     D.newGame(true);
     const hitBy0 = { ...D.ST.hitBy }, logEl = document.getElementById('log'), logMark = logEl.firstElementChild;
     D.queueInput({ type: 'pray', style: 'mage' });
@@ -282,12 +282,13 @@ window.addEventListener('load', () => setTimeout(() => {
 
     // I: saved settings from the earlier versions carry over
     const m = D.migrate({ zoom: 14, camera: 'follow', layout: 'full', tickMs: 1200, debris: 26, keys: true, mode: 'drill', std: true, ui: '2' });
-    ok(m.zoom === 12 && m.camera === 'frame' && m.v === 7, 'I v2 settings move to the closer zoom and the camera that keeps Doom in view');
+    ok(m.zoom === 12 && m.camera === 'frame' && m.v === 8, 'I v2 settings move to the closer zoom and the camera that keeps Doom in view');
     ok(!('memes' in D.migrate({ v: 5, memes: true })), 'I the death memes setting is dropped');
     ok(m.ui === '1.25' && !('std' in m), 'I interface scale caps at 125% and the autos setting is dropped');
     ok(m.pray.mage === 16 && m.pray.range === 17 && m.pray.melee === 18 && !('drill' in m), 'I the full book keeps protects on row 4, and the old drill mode is dropped');
     const m6 = D.migrate({ v: 6, drill: true });
-    ok(!('drill' in m6) && m6.v === 7, 'I the Rockblock drill setting is dropped');
+    ok(!('drill' in m6) && m6.v === 8, 'I the Rockblock drill setting is dropped');
+    ok(m.mode === 'dodge' && m6.mode === 'dodge' && D.migrate({ v: 7, mode: 'punish' }).mode === 'punish', 'I the mode defaults to Double rock, and a saved Rockblock + punish is kept');
     ok(!('tickMs' in m) && !('debris' in m) && !('keys' in m) && !('layout' in m), 'I removed options are dropped');
     const custom = Array(30).fill(null); custom[7] = 'protect_magic'; custom[12] = 'protect_missiles'; custom[0] = 'protect_melee';
     const mc = D.migrate({ v: 3, zoom: 14, camera: 'follow', layout: 'custom', custom });
@@ -303,20 +304,23 @@ window.addEventListener('load', () => setTimeout(() => {
     ok(D.S.pray.melee === 2 && D.S.pray.range === 3, 'J dropping on another prayer swaps the two');
     D.S = Object.assign({}, D.S, { pray: { mage: 1, range: 2, melee: 3 } });
 
-    // K: the Rockblock drill is gone: no toggle, no setting, one divider left in the top row
-    ok(!document.getElementById('btn-drill') && !('drill' in D.S) && !D.setupDrill && document.querySelectorAll('.bar .divider').length === 1, 'K no Rockblock drill toggle or setting');
-    ok(!document.querySelector('.app').textContent.includes('Rockblock'), 'K the page never mentions the Rockblock drill');
+    // K: the old Rockblock drill toggle is gone, and the top row has the mode switch instead
+    ok(!document.getElementById('btn-drill') && !('drill' in D.S) && !D.setupDrill, 'K no Rockblock drill toggle or setting');
+    ok(document.querySelectorAll('.bar .divider').length === 2 && [...document.querySelectorAll('.bar .btn.mode')].map(b => b.textContent).join() === 'Double rock,Rockblock + punish', 'K the top row has the mode switch');
 
-    // L: the run orb toggles run on the next tick
+    // L: you always run: no run orb and no run key; a click runs 2 tiles a tick, Ctrl + click walks 1
     D.newGame(true);
     D.layout();
-    const o = D.orbGeom();
-    ok(D.inOrb(o.x, o.y) && !D.inOrb(o.x - o.r * 1.5, o.y), 'L orb hit area');
-    const runWas = D.G.player.run;
-    D.queueInput({ type: 'run' });
-    ok(D.G.player.run === runWas, 'L run does not change before the tick');
-    run(1);
-    ok(D.G.player.run === !runWas, 'L run toggles on the next tick');
+    ok(!D.inOrb && !D.orbGeom && !D.A.icons['Run orb on'] && !D.inSpec(D.specGeom().x, D.specGeom().y), 'L no run orb, and no spec orb outside Rockblock + punish');
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'r' }));
+    ok(D.G.inputs.length === 0 && D.G.player.run, 'L the R key does nothing and you keep running');
+    const lx = D.G.player.x;
+    D.queueInput({ type: 'move', x: lx + 4, y: D.G.player.y }); run(1);
+    ok(D.G.player.x === lx + 2, 'L a click runs 2 tiles a tick');
+    D.queueInput({ type: 'move', x: lx, y: D.G.player.y, walk: true }); run(1);
+    ok(D.G.player.x === lx + 1, 'L Ctrl + click walks 1 tile a tick');
+    const ovKeys = [...document.querySelectorAll('#ov-keys dt')].map(d => d.textContent).join();
+    ok(ovKeys === 'Run,Walk,Attack Doom,Special attack,Pause,Next tick' && getComputedStyle(document.querySelector('#ov-keys .is-punish')).display === 'none', 'L the start window lists Run and Walk, no Pray or Toggle run, and hides the punish rows in Double rock: ' + ovKeys);
 
     // O: the page itself: removed sections and options, green values in the report, damage table
     const txt = document.querySelector('.app').textContent;
@@ -327,10 +331,10 @@ window.addEventListener('load', () => setTimeout(() => {
     ok(!!okB && getComputedStyle(okB).color === 'rgb(95, 227, 95)', 'O successful lines show their value in green');
     ok(document.querySelector('.bar #btn-edit') && document.querySelector('.bar #btn-reset-layout').hidden, 'O prayer layout buttons live in the top row, reset only while arranging');
     const st = D.ST, per = v => st.reps ? (v ? (v / st.reps).toFixed(1) : '0') : '–';
-    const allD = st.dmg.debris + st.dmg.boulder + st.dmg.barrage;
+    const allD = st.dmg.debris + st.dmg.boulder + st.dmg.barrage + st.dmg.beam;
     ok(document.getElementById('st-a-all').textContent === per(allD) && document.getElementById('st-d-all').textContent === String(allD), 'O damage table totals and per-rep averages (' + allD + ' over ' + st.reps + ' reps)');
-    ok(document.querySelectorAll('table.dmg td .hs').length === 8, 'P every damage cell in the session table is a hitsplat');
-    const allN = st.hitBy.debris + st.hitBy.boulder + st.hitBy.barrage;
+    ok(document.querySelectorAll('table.dmg td .hs').length === 10, 'P every damage cell in the session table is a hitsplat');
+    const allN = st.hitBy.debris + st.hitBy.boulder + st.hitBy.barrage + st.hitBy.beam;
     ok([...document.querySelectorAll('table.dmg thead th')].map(th => th.textContent).join() === 'Damage taken,Times hit,Total,Per rep' && document.getElementById('st-n-all').textContent === String(allN), 'T the damage table has a Times hit column, ' + allN + ' hits in all');
     ok(!txt.includes('How the double rock works') && !txt.includes('The method') && txt.includes('Unofficial fan practice tool'), 'O the notes are gone and the Jagex credit stays');
 
@@ -338,7 +342,7 @@ window.addEventListener('load', () => setTimeout(() => {
     const uIds = Object.keys(D.A.synths);
     const uSum = s => s.reduce((a, v) => (Math.imul(a, 31) + v) | 0, 7);
     const uRender = id => D.synth.render(Uint8Array.from(atob(D.A.synths[id]), c => c.charCodeAt(0)));
-    ok(uIds.length === 19 && uIds.every(id => uRender(id).length > 0), 'U all ' + uIds.length + ' fight sounds render');
+    ok(uIds.length === 24 && uIds.every(id => uRender(id).length > 0), 'U all ' + uIds.length + ' fight sounds render');
     const uRef = { 2675: [33075, -957099799], 10331: [33075, -706118489], 10371: [116865, 870910574], 7023: [17640, -1632619715] };
     ok(Object.entries(uRef).every(([id, [n, c]]) => { const s = uRender(id); return s.length === n && uSum(s) === c; }), 'U renders match the reference renders sample for sample');
     D.S = Object.assign({}, D.S, { sound: true, death: false, color: 'mage' });
@@ -367,6 +371,82 @@ window.addEventListener('load', () => setTimeout(() => {
     run(20);
     ok(D.soundLog.length === 0, 'U no sounds with Sound effects off');
     D.S = Object.assign({}, D.S, { sound: true });
+
+    // R: Rockblock + punish. Every rep starts on tile 1; on dip 1 you click tile 2, on dip 2 you arm the special and
+    // click Doom, and the halberd's Sweep punishes the melee charge before the beam fires on T+16
+    D.S = Object.assign({}, D.S, { color: 'mage', death: false, sound: true });
+    D.G.started = false;
+    D.setMode('punish');
+    const qWin = document.querySelector('#overlay .window');
+    ok(!document.getElementById('overlay').hidden && qWin.classList.contains('punish') && document.getElementById('ov-title').textContent === 'Double rockblock + punish' && getComputedStyle(document.querySelector('#ov-keys .is-punish')).display !== 'none', 'R the start window switches to Rockblock + punish, with the attack and special rows');
+    D.newGame(true);
+    document.getElementById('overlay').hidden = true;
+    D.G.running = false;
+    const qRB = D.RB, qP = () => D.G.player;
+    ok(D.S.mode === 'punish' && qP().x === qRB.t1.x && qP().y === qRB.t1.y, 'R the run starts on tile 1');
+    ok(document.getElementById('mode-punish').getAttribute('aria-pressed') === 'true' && document.getElementById('ruler').textContent.includes('click tile 2') && document.getElementById('ruler').textContent.includes('beam fires'), 'R the mode button and the tick ruler switch to the punish steps');
+    D.layout();
+    const qOrb = D.specGeom();
+    ok(D.inSpec(qOrb.x, qOrb.y) && qOrb.y < D.V.ch * 0.15 && qOrb.x > D.V.px, 'R the spec orb sits at the top right');
+    ok(parseFloat(getComputedStyle(document.querySelector('.view')).getPropertyValue('--hud-top')) >= qOrb.y + qOrb.r, 'R the pause card sits under the spec orb');
+    D.queueInput({ type: 'spec' });
+    ok(!qP().spec, 'R the special does not arm before the tick');
+    run(1); ok(qP().spec, 'R the special arms on the next tick');
+    D.queueInput({ type: 'spec' }); run(1); ok(!qP().spec, 'R a second press disarms it');
+    qP().energy = 20;
+    D.queueInput({ type: 'spec' }); run(1);
+    ok(!qP().spec && document.getElementById('log').firstElementChild.textContent.includes('not have enough special attack energy'), 'R under 30% energy the special will not arm');
+    ok(D.doomDist(16, 8) === 2 && D.inReach(16, 8) && D.inReach(15, 9) && !D.inReach(17, 8) && !D.inReach(12, 12), 'R the halberd reaches 2 tiles from Doom');
+
+    D.newGame(true);
+    D.soundLog.length = 0;
+    run(6);
+    const qRep = D.G.rep;
+    ok(qRep && r() === 0 && qRep.charge && !qRep.charge.on && qP().x === qRB.t1.x && qP().y === qRB.t1.y && qP().energy === 100, 'R rep 1 starts on tile 1 with a full special bar');
+    run(3); ok(r() === 3 && qRep.charge.on, 'R Doom starts charging with throw 2 on T+3');
+    run(3); ok(r() === 6, 'R at T+6 (dip 1)');
+    D.queueInput({ type: 'move', x: qRB.t2.x, y: qRB.t2.y });
+    run(3);
+    ok(r() === 9 && qRep.b1.x === qRB.t1.x && qRep.b1.y === qRB.t1.y && qP().x === qRB.t2.x && qP().y === qRB.t2.y, 'R boulder 1 is set on tile 1 and you reach tile 2 on T+9');
+    D.queueInput({ type: 'spec' }); D.queueInput({ type: 'attack' });
+    run(1);
+    ok(r() === 10 && qRep.b2.x === qRB.t2.x && qRep.b2.y === qRB.t2.y && qP().target === 'doom' && qP().spec, 'R boulder 2 is set on tile 2 and you head for Doom with the special armed');
+    ok(qP().dest && D.doomDist(qP().dest.x, qP().dest.y) === 2, 'R you path to the halberd\'s full reach, 2 tiles from Doom');
+    D.queueInput({ type: 'pray', style: qRep.pattern[0] });
+    for (let i = 0; i < 6; i++) {
+      run(1);
+      const nxt = D.G.rep && D.G.rep.pattern[i + 1];
+      if (nxt && nxt !== qP().prayer) D.queueInput({ type: 'pray', style: nxt });
+    }
+    const qPun = qRep.charge.punish;
+    ok(D.G.rep === null && qPun && qPun.sweep && qPun.r === 12 && qPun.hits.length === 2 && qPun.hits.every(h => h >= D.HAL.bonus), 'R Sweep punishes the charge on T+12 with two hits: ' + (qPun ? qPun.hits.join(', ') : 'none'));
+    ok(!qRep.charge.on && !qRep.charge.fired && !qRep.dmg.beam && qP().energy === 70, 'R the punish cancels the beam and spends 30% energy');
+    ok(qRep.hits.every(h => h && h.ok), 'R all six barrage hits prayed on the way');
+    const qAt = (tick, id) => D.soundLog.filter(e => e.tick === qRep.start + tick && e.id === id);
+    ok(D.SND.charge.every(([id, d]) => qAt(3, id).some(e => e.delay === d)), 'R the charge sounds play on T+3');
+    const qLoops = D.soundLog.filter(e => e.id === D.SND.chargeLoop).map(e => e.tick - qRep.start).join();
+    ok(qLoops === '4,5,6,7,8,9,10,11', 'R the charge loop sounds every tick until the punish: ' + qLoops);
+    ok(qAt(12, D.SND.cancel).length === 1 && !D.soundLog.some(e => D.SND.beam.some(([id]) => id === e.id)), 'R the cancel sound plays on the punish, and no beam');
+    const qTxt = document.getElementById('report').textContent;
+    ok(qTxt.includes('on tile 1') && qTxt.includes('on tile 2') && qTxt.includes('Sweep on T+12'), 'R the report shows both boulders on their tiles and the Sweep');
+
+    run(3);
+    ok(!D.G.rep && qP().x === qRB.t1.x && qP().y === qRB.t1.y && qP().energy === 100 && !qP().target && D.G.boulders.size === 0, 'R three ticks after the rep you are back on tile 1 with a full bar and a clear floor');
+    let qW = 0;
+    while (!D.G.rep && qW++ < 20) run(1);
+    const qRep2 = D.G.rep, qBeam0 = D.ST.hitBy.beam;
+    ok(qRep2 && qP().x === qRB.t1.x && qP().y === qRB.t1.y && D.soundLog.filter(e => e.tick === qRep2.start - 2 && e.id === D.THROW_SOUNDS[0][0]).length === 1, 'R the next rep starts with you on tile 1, after the throw animation');
+    D.soundLog.length = 0;
+    run(16);
+    ok(qRep2.charge.fired && qRep2.dmg.beam === 99 && D.ST.hitBy.beam === qBeam0 + 1 && qRep2.wouldDie, 'R left alone, the charge fires the beam on T+16 for 99');
+    ok(D.SND.beam.every(([id, d]) => D.soundLog.some(e => e.tick === qRep2.start + 16 && e.id === id && e.delay === d)), 'R the beam sounds play on T+16');
+    ok(document.getElementById('report').textContent.includes('missed, beam hit you'), 'R the report says the punish was missed');
+
+    D.setMode('dodge');
+    D.G.running = false;
+    ok(qP().x === 17 && qP().y === 6 && !D.inSpec(qOrb.x, qOrb.y), 'R back in Double rock: your old start tile, no spec orb');
+    run(6);
+    ok(D.G.rep && D.G.rep.charge === null, 'R Double rock reps have no charge');
 
     // M: dying in Real hitpoints: the rep counts, the report says Dead, and the death window offers a fresh run
     D.S = Object.assign({}, D.S, { death: true, color: 'mage' });
