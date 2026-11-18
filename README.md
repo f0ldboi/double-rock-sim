@@ -87,7 +87,7 @@ The first command builds the bare page. The second wraps it as a complete web pa
 bash tools/run_tests.sh
 ```
 
-This builds the page, appends `test/harness-tail.html` and runs it in headless Chrome. The harness steps the sim tick by tick and runs 104 checks covering timings, damage, prayers, sounds, the camera, saved settings and the page panels. If Chrome isn't at its usual Windows path, set `CHROME` to its location. Set `PYTHON` to choose the interpreter.
+This builds the page, appends `test/harness-tail.html` and runs it in headless Chrome. The harness steps the sim tick by tick and runs 106 checks covering timings, damage, prayers, sounds, the rock flights, the camera, saved settings and the page panels. If Chrome isn't at its usual Windows path, set `CHROME` to its location. Set `PYTHON` to choose the interpreter.
 
 `test/shot-tail.html` freezes a scenario for screenshots. Append it to the built page and open the result with a hash such as `#barrage`.
 

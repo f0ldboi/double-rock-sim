@@ -184,9 +184,11 @@ window.addEventListener('load', () => setTimeout(() => {
     ok(clampedNear === 0, 'G north, east and west of Doom the rocks fit without the edge clamp (' + clampedNear + ')');
     out.push('INFO rock frames that needed the edge clamp anywhere: ' + clamped + ' of ' + samples);
 
-    // S: the flight is one continuous motion: from the throw to the burst the rock never hangs in place.
-    // In any one tick it travels at least a quarter tile along the path it is actually drawn on (after the
-    // edge clamp, counting growth and shrinking at its edge too). The old 3-tick hover only bobbed.
+    // S: the flight is one continuous throw: from the throw to the burst the rock never hangs in place. In any
+    // one tick it travels a fair way along the path it is actually drawn on (after the edge clamp, counting
+    // growth and shrinking at its edge too), where the old 3-tick hover only bobbed. The slowest spot is a lob
+    // thrown straight away from the camera, standing against Doom's north side: it turns over at the top
+    // like a thrown ball.
     const slowestFrom = spots => {
       let slow = 1e9, at = '';
       for (const [x, y] of spots) {
@@ -205,14 +207,61 @@ window.addEventListener('load', () => setTimeout(() => {
       return [slow, at];
     };
     const [slowest, slowAt] = slowestFrom([[17, 6], [12, 7], [12, 9], [7, 12], [9, 12], [17, 12], [12, 15], [12, 16], [12, 17], [15, 15], [9, 16], [20, 2], [4, 6], [12, 6]]);
-    ok(slowest >= 0.25, 'S rocks keep moving: the slowest tick still covers ' + slowest.toFixed(2) + ' tiles (' + slowAt + ')');
+    ok(slowest >= 0.12, 'S rocks keep moving: the slowest tick still covers ' + slowest.toFixed(2) + ' tiles (' + slowAt + ')');
     const [slowFar, slowFarAt] = slowestFrom([[12, 19], [12, 21], [12, 23], [8, 20], [17, 21], [4, 20], [21, 22]]);
-    out.push('INFO far south of Doom, where even the rock in its hands starts above the view, the slowest tick covers ' + slowFar.toFixed(2) + ' tiles (' + slowFarAt + ')');
+    out.push('INFO far south of Doom, where the view ends close above Doom, the slowest tick covers ' + slowFar.toFixed(2) + ' tiles (' + slowFarAt + ')');
     const kEnd = { id: 1, thrown: 0, color: 'mage' };
+    snap(17, 6);
     D.G.rocks = [kEnd];
-    const atBurst = D.rockState(kEnd, 7, [17, 6], 50), atDip = D.rockState(kEnd, 6, [17, 6], 50);
+    const atBurst = D.rockState(kEnd, 7, [17, 6]), atDip = D.rockState(kEnd, 6, [17, 6]);
     D.G.rocks = [];
-    ok(Math.abs(atBurst.x - 17.5) < 0.01 && Math.abs(atBurst.y - 6.5) < 0.01 && atDip.dip === 0 && atBurst.sc > atDip.sc, 'S the dip starts at age 6 and ends over you at the burst, growing as it falls');
+    ok(Math.abs(atBurst.x - 17.5) < 0.01 && Math.abs(atBurst.y - 6.5) < 0.01 && Math.abs(atBurst.h - 2.2) < 0.01 && atDip.dip === 0 && atBurst.h < atDip.h - 0.5, 'S the dip starts at age 6 and the rock comes down to burst over you');
+
+    // and its speed only ever changes smoothly. Frame by frame at 60 fps, with the camera following, the
+    // speed it is drawn moving at never jumps from one frame to the next, standing still or running about,
+    // and it never needs the edge clamp. The old keyframed flight lurched by up to 2.9 tiles per tick in a frame.
+    const flightJumps = keys => {
+      const pAt = ct => {
+        if (ct <= keys[0][0]) return [keys[0][1], keys[0][2]];
+        for (let i = 0; i + 1 < keys.length; i++) {
+          const [t0, x0, y0] = keys[i], [t1, x1, y1] = keys[i + 1];
+          if (ct <= t1) { const w = (ct - t0) / (t1 - t0); return [x0 + (x1 - x0) * w, y0 + (y1 - y0) * w]; }
+        }
+        const l = keys[keys.length - 1]; return [l[1], l[2]];
+      };
+      const fr = 1000 / 60, dct = fr / 600, rocks = [{ id: 1, thrown: 0, color: 'mage' }, { id: 2, thrown: 3, color: 'mage' }];
+      const last = {}, speed = {};
+      let jump = 0, edge = 0;
+      D.cam.init = false;
+      for (let ct = -0.5; ct < 10; ct += dct) {
+        const pp = pAt(ct);
+        D.updateCam(pp, fr);
+        D.G.rocks = rocks.filter(k => ct >= k.thrown && ct < k.thrown + 7);
+        for (const k of D.G.rocks) {
+          const st = D.rockState(k, ct, pp, fr), sc = D.rockScreen(st);
+          if (Math.hypot(D.sx(st.x) - sc.X, D.sy(st.y) - st.h * V.TS - sc.Y) > 0.5) edge++;
+          const p = [sc.X / V.TS, sc.Y / V.TS];
+          if (last[k.id]) {
+            const v = Math.hypot(p[0] - last[k.id][0], p[1] - last[k.id][1]) / dct;
+            if (speed[k.id] !== undefined) jump = Math.max(jump, Math.abs(v - speed[k.id]));
+            speed[k.id] = v;
+          }
+          last[k.id] = p;
+        }
+      }
+      D.G.rocks = [];
+      return [jump, edge];
+    };
+    let calmJump = 0, calmEdge = 0;
+    for (const [x, y] of [[17, 6], [12, 6], [12, 9], [6, 12], [18, 12], [12, 17], [9, 16], [4, 4]]) {
+      const [j, e] = flightJumps([[0, x, y]]);
+      calmJump = Math.max(calmJump, j); calmEdge += e;
+    }
+    ok(calmJump < 0.05 && calmEdge === 0, 'S standing still the flight is smooth: its speed changes at most ' + calmJump.toFixed(3) + ' tiles per tick between frames, edge clamp on ' + calmEdge + ' frames');
+    const [runJump, runEdge] = flightJumps([[0, 17, 6], [1, 17, 6], [3, 21, 6], [5, 21, 6], [6, 19, 6], [7.2, 19, 6], [8, 19, 8], [10.2, 19, 8]]);
+    const [walkJump, walkEdge] = flightJumps([[0, 17, 6], [1, 17, 6], [9, 17, 14]]);
+    ok(Math.max(runJump, walkJump) < 0.15 && runEdge + walkEdge === 0, 'S running about and walking south past Doom the rocks follow smoothly: at most ' + Math.max(runJump, walkJump).toFixed(3) + ' tiles per tick between frames, edge clamp on ' + (runEdge + walkEdge) + ' frames');
+    snap(17, 6);
 
     // H: barrage launches from around you, one per tick, each from a different side
     D.S = Object.assign({}, D.S, { color: 'mage', std: false });

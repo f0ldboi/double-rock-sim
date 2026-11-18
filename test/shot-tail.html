@@ -47,7 +47,8 @@ window.addEventListener("load", () => setTimeout(() => {
     D.G.drag = { style: "mage", x: X, y: Y, x0: 0, y0: 0, moved: true };
     D.G.mouse = [X, Y];
     document.getElementById("paused").hidden = false;
-    document.getElementById("paused").textContent = "Drag a prayer to any slot · Done when finished";
+    document.getElementById("paused").classList.add("edit");
+    document.getElementById("hud-title").textContent = "Arrange prayers";
   }
   if (sc === "og") { D.S = Object.assign({}, D.S, { chat: false }); document.getElementById("paused").hidden = true; }
   D.G.frozenF = f; D.G.stepAnimAt = 0; D.cam.init = false;

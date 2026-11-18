@@ -47,7 +47,10 @@ html,body{background:var(--page)}
 body{margin:0;color:var(--text);font-family:var(--font-body);font-size:var(--fs-md);line-height:1.5;
   padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:16px 56px}
 a{color:var(--orange)}
-a:focus-visible,button:focus-visible,select:focus-visible,input:focus-visible,canvas:focus-visible{outline:2px solid var(--yellow);outline-offset:2px}
+a:focus-visible,button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--yellow);outline-offset:2px}
+/* the game view shows keyboard focus in its own frame rather than a second ring around it */
+#game:focus-visible{outline:none}
+.view:has(#game:focus-visible){box-shadow:0 0 0 1px #000,0 0 0 3px var(--orange),0 0 0 4px #000}
 kbd{font-family:var(--font-mono);font-weight:600;font-size:12px;background:var(--iface-lo);box-shadow:var(--bevel);border-radius:2px;padding:1px 6px;color:var(--text)}
 .app{max-width:1280px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
 h1,h2,h3{text-wrap:balance}
@@ -58,7 +61,18 @@ h1,h2,h3{text-wrap:balance}
 
 .view{position:relative;background:#000;box-shadow:0 0 0 1px #000,0 0 0 3px var(--iface-mid),0 0 0 4px #000}
 #game{display:block;width:100%;aspect-ratio:16/9;height:auto;cursor:default;touch-action:none;user-select:none}
-.paused{position:absolute;right:10px;top:10px;white-space:nowrap;pointer-events:none;background:rgba(0,0,0,.6);color:var(--yellow);font:600 var(--fs-sm)/1 var(--font-body);padding:6px 10px;text-shadow:1px 1px 0 #000}
+/* the pause card: an interface box over the side panel's column, clear of the room, sized with the interface (--ui-s) */
+.hud{position:absolute;right:calc(10px * var(--ui-s,1));top:calc(10px * var(--ui-s,1));pointer-events:none;max-width:17em;
+  display:flex;flex-direction:column;gap:.55em;padding:.65em .85em .75em;font-size:calc(14px * var(--ui-s,1));line-height:1.2;
+  background:rgba(62,53,41,.96);box-shadow:var(--bevel),0 .4em 1.4em rgba(0,0,0,.55)}
+.hud-title{margin:0;display:flex;align-items:center;gap:.55em;font:700 1.08em/1 var(--font-display);letter-spacing:.06em;text-transform:uppercase;color:var(--orange);text-shadow:1px 1px 0 #000}
+.hud-ico{width:.72em;height:.82em;flex:none;border-inline:.24em solid currentColor;filter:drop-shadow(1px 1px 0 #000)}
+.hud-note{margin:0;color:var(--text)}
+.hud-keys{margin:0;display:flex;flex-wrap:wrap;align-items:center;gap:.45em 1.1em}
+.hud-keys div{display:flex;align-items:center;gap:.5em}
+.hud-keys dd{margin:0;color:var(--text)}
+.hud kbd{font-size:.86em;min-width:2.4em;padding:.15em .5em;text-align:center}
+.hud:not(.edit) .is-edit,.hud.edit .is-pause{display:none}
 .overlay{position:absolute;left:0;right:0;bottom:0;display:flex;justify-content:flex-start;padding:16px;pointer-events:none}
 .window{pointer-events:auto;max-width:520px;background:var(--iface);box-shadow:var(--bevel),0 10px 40px rgba(0,0,0,.65);padding:14px 16px;display:flex;flex-direction:column;gap:10px}
 .window h2{margin:0;font-family:var(--font-display);font-size:22px;line-height:1.1;color:var(--orange);text-shadow:1px 1px 0 #000}
@@ -183,7 +197,15 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
 
   <div class="view">
     <canvas id="game" tabindex="0" aria-label="Game view. Click a tile to walk there; click prayers in the prayer book at the bottom right."></canvas>
-    <div class="paused" id="paused" hidden>Paused · Space resumes · . steps one tick</div>
+    <div class="hud" id="paused" role="status" hidden>
+      <p class="hud-title"><span class="hud-ico is-pause" aria-hidden="true"></span><span id="hud-title">Paused</span></p>
+      <p class="hud-note is-edit">Drag a prayer to any slot</p>
+      <dl class="hud-keys">
+        <div class="is-pause"><dt><kbd>Space</kbd></dt><dd>Resume</dd></div>
+        <div class="is-pause"><dt><kbd>.</kbd></dt><dd>Next tick</dd></div>
+        <div class="is-edit"><dt><kbd>Esc</kbd></dt><dd>Done</dd></div>
+      </dl>
+    </div>
     <div class="overlay" id="overlay">
       <div class="window start" role="dialog" aria-labelledby="ov-title">
         <h2 id="ov-title">Survive the double rock</h2>
@@ -319,7 +341,7 @@ select{appearance:none;width:100%;background:var(--iface-lo) url("data:image/svg
   const ROCK_FLIGHT = 7;
   // debris per rock: about 18 of the 80 tiles around you, counted in the delve 8 clip; deeper delves keep delve 8's numbers
   const DEBRIS = 18;
-  // rock flight drawing, in tiles: lift height over Doom, hover height over you, size at full scale, size while high
+  // in tiles: the air over Doom's head the camera tries to keep in view for the throws, and a rock's diameter
   const LIFT_H = 3.3, ROCK_D = 1.9;
   const LAND_DELAY = 2;
   const FIELD = 4;
@@ -1388,6 +1410,7 @@ if (typeof module !== 'undefined') module.exports = OsrsSynth;
     cv.width = Math.round(V.cw * V.dpr);
     cv.height = Math.round(V.ch * V.dpr);
     V.ui = S.ui === 'auto' ? clamp((V.ch * 0.62) / PANEL_H, 0.55, 1.25) : Math.min(1.25, Number(S.ui) || 1);
+    cv.parentElement.style.setProperty('--ui-s', clamp(V.ui, 0.8, 1.15).toFixed(3));
     V.pw = PANEL_W * V.ui; V.ph = PANEL_H * V.ui;
     V.px = V.cw - V.pw; V.py = V.ch - V.ph;
     V.TS0 = Math.max(14, V.ch / S.zoom);
@@ -1432,56 +1455,53 @@ if (typeof module !== 'undefined') module.exports = OsrsSynth;
   }
 
   /* ================= rendering ================= */
-  // A rock never stops and never leaves the screen. As in the game it is one continuous flight: lifted out of
-  // Doom's hands, it arcs up and away toward you (shrinking as it climbs), glides on, starts to come down,
-  // and in the dip, the tick before the burst, it plunges and grows. With two rocks up they fly side by side.
+  // Each rock is one continuous throw, as in the game: a lob from Doom's hands to the air over your head. Like
+  // the game's projectiles it covers the ground at an even pace and follows you smoothly when you move, and
+  // its height follows one parabola: quick off the hands, slowing over the top, then falling faster and faster
+  // into the burst. It looks bigger the higher it is, as the game's camera shows it. Rock 1 bends a little to
+  // one side of its line and rock 2 to the other, so the two stay apart. Nothing else moves it, so it never
+  // stalls or surges, and it never leaves the screen.
   const ROCK_HEAD = [BOSS_C[0], BOSS_C[1] - 0.3];
-  // monotone cubic through keyframes: smooth, never overshoots, and only levels off at a peak
-  function pchip(xs, ys) {
-    const n = xs.length, d = [], m = [];
-    for (let i = 0; i < n - 1; i++) d.push((ys[i + 1] - ys[i]) / (xs[i + 1] - xs[i]));
-    m[0] = d[0]; m[n - 1] = d[n - 2];
-    for (let i = 1; i < n - 1; i++) {
-      const h0 = xs[i] - xs[i - 1], h1 = xs[i + 1] - xs[i], w1 = 2 * h1 + h0, w2 = h1 + 2 * h0;
-      m[i] = d[i - 1] * d[i] <= 0 ? 0 : (w1 + w2) / (w1 / d[i - 1] + w2 / d[i]);
+  // in tiles: its height in Doom's hands and at the burst, the most its arc rises over the straight line
+  // between them, and how far it bends aside at the middle of the flight
+  const ROCK_H0 = 2, ROCK_H1 = 2.2, ROCK_ARC = 2.4, ROCK_BEND = 0.6;
+  // its size, as a share of ROCK_D, at height h when u of the way through the flight
+  const SIZE_H = 0.12;
+  const rockSize = (h, u) => 0.75 + SIZE_H * (h - ROCK_H0) + 0.25 * u;
+  // The tallest arc whose whole flight fits in the open view, and the height in Doom's hands that keeps the
+  // rock on screen there. Both only drop below the usual where the view ends close above Doom, south of it.
+  function rockFit(ty, ny) {
+    const top = V.ry0 + 2, R = ROCK_D / 2, grow = 1 + R * SIZE_H;
+    const room = gy => (sy(gy) - top) / V.TS;
+    const h0 = clamp((room(ROCK_HEAD[1]) - R * (0.75 - SIZE_H * ROCK_H0)) / grow, -1, ROCK_H0);
+    let arc = ROCK_ARC;
+    for (let i = 1; i < 16; i++) {
+      const u = i / 16, w = 4 * u * (1 - u), hc = lerp(h0, ROCK_H1, u);
+      const free = room(lerp(ROCK_HEAD[1], ty, u) + ny * ROCK_BEND * w) - hc - R * rockSize(hc, u);
+      arc = Math.min(arc, free / (w * grow));
     }
-    return x => {
-      let i = 0;
-      while (i < n - 2 && x > xs[i + 1]) i++;
-      const h = xs[i + 1] - xs[i], u = clamp((x - xs[i]) / h, 0, 1), u2 = u * u, u3 = u2 * u;
-      return (2 * u3 - 3 * u2 + 1) * ys[i] + (u3 - 2 * u2 + u) * h * m[i] + (3 * u2 - 2 * u3) * ys[i + 1] + (u3 - u2) * h * m[i + 1];
-    };
+    return { h0, arc: Math.max(0, arc) };
   }
-  // Keyed by ticks since the throw: s is how far it has come from Doom toward you, h the height it is drawn
-  // above that spot (tiles), sc its size. The dip is the last tick.
-  const ROCK_T = [0, 1, 2.2, 3.5, 4.8, ROCK_FLIGHT - 1, ROCK_FLIGHT];
-  // The high arc, when the view has room above Doom: the first tick is mostly straight up, and after that h
-  // falls only about a tile over the whole crossing, so moving toward you always wins on screen.
-  const ROCK_HIGH = {
-    s: pchip(ROCK_T, [0, 0.05, 0.3, 0.55, 0.78, 0.975, 1]),
-    h: pchip(ROCK_T, [2, 3.6, 4.05, 3.78, 3.52, 3.3, 2.2]),
-    sc: pchip(ROCK_T, [0.8, 0.95, 0.8, 0.7, 0.64, 0.64, 1.15]),
-  };
-  // South of Doom the view ends just above its head, so the arc is flatter: a short rise, then it sweeps
-  // down toward you instead of pressing against the top edge.
-  const ROCK_LOW = {
-    s: pchip(ROCK_T, [0, 0.04, 0.3, 0.57, 0.8, 0.975, 1]),
-    h: pchip(ROCK_T, [2, 2.45, 2.55, 2.6, 2.62, 2.65, 2.2]),
-    sc: pchip(ROCK_T, [0.8, 0.86, 0.76, 0.67, 0.62, 0.64, 1.15]),
-  };
-  function rockState(k, ct, pp, dt) {
-    const age = ct - k.thrown, t = clamp(age, 0, ROCK_FLIGHT);
-    const dip = age >= ROCK_FLIGHT - 1;
-    const want = !dip && G.rocks.length > 1 ? (k.id === 1 ? -0.8 : 0.8) : 0;
-    k.ox = k.ox === undefined ? want : k.ox + (want - k.ox) * (1 - Math.exp(-dt / 220));
-    // how much of the high arc fits above Doom's head in the view right now (it eases with the camera)
-    const room = clamp(((sy(ROCK_HEAD[1]) - V.ry0) / V.TS - 3.2) / 1.4, 0, 1), q = room * room * (3 - 2 * room);
-    const at = ch => lerp(ROCK_LOW[ch](t), ROCK_HIGH[ch](t), q);
-    const s = at('s'), u = dip ? clamp(age - (ROCK_FLIGHT - 1), 0, 1) : 0;
+  function rockState(k, ct, pp) {
+    const age = clamp(ct - k.thrown, 0, ROCK_FLIGHT), u = age / ROCK_FLIGHT;
+    const tx = pp[0] + 0.5, ty = pp[1] + 0.5;
+    // ticks of flight since the last frame drawn; a fresh rock, or a jump in time, starts over
+    const step = k.u === undefined || u < k.u || u - k.u > 0.25 ? -1 : (u - k.u) * ROCK_FLIGHT;
+    const ease = (v, to, tc) => step < 0 ? to : v + (to - v) * (1 - Math.exp(-step / tc));
+    // it aims at you and eases after you when you move, so a step aside bends its path without a jolt
+    k.ax = ease(k.ax, tx, 0.25); k.ay = ease(k.ay, ty, 0.25);
+    // aside means square to the line from Doom to where it aims
+    const dx = k.ax - ROCK_HEAD[0], dy = k.ay - ROCK_HEAD[1], dl = Math.hypot(dx, dy) || 1, side = k.id === 1 ? -1 : 1;
+    const nx = -dy / dl * side, ny = dx / dl * side;
+    // the arc eases to the room in the view: quickly when it has to come down to stay on screen, gently back up
+    const fit = rockFit(k.ay, ny);
+    k.h0 = ease(k.h0, fit.h0, fit.h0 < k.h0 ? 0.12 : 0.6);
+    k.arc = ease(k.arc, fit.arc, fit.arc < k.arc ? 0.12 : 0.6);
+    k.u = u;
+    const bend = ROCK_BEND * 4 * u * (1 - u), h = lerp(k.h0, ROCK_H1, u) + 4 * k.arc * u * (1 - u);
     return {
-      x: lerp(ROCK_HEAD[0], pp[0] + 0.5 + k.ox, s), y: lerp(ROCK_HEAD[1], pp[1] + 0.5, s),
-      h: at('h'), sc: at('sc'), rot: age * 0.9,
-      shadow: 0.18 * Math.min(1, s * 3) + 0.4 * u, dip: dip ? u : undefined,
+      x: lerp(ROCK_HEAD[0], k.ax, u) + nx * bend, y: lerp(ROCK_HEAD[1], k.ay, u) + ny * bend, h, sc: rockSize(h, u), rot: age * 0.9,
+      shadow: 0.16 + 0.42 * u ** 4, dip: age >= ROCK_FLIGHT - 1 ? age - (ROCK_FLIGHT - 1) : undefined,
     };
   }
   // screen position of a rock, kept inside the open view
@@ -1560,7 +1580,7 @@ if (typeof module !== 'undefined') module.exports = OsrsSynth;
     const P = G.player;
     const pp = playerPos(f);
     updateCam(pp, dt);
-    const rocks = G.rocks.map(k => ({ k, st: rockState(k, ct, pp, dt) }));
+    const rocks = G.rocks.map(k => ({ k, st: rockState(k, ct, pp) }));
     const TS = V.TS, ui = V.ui;
 
     ctx.setTransform(V.dpr, 0, 0, V.dpr, 0, 0);
@@ -1618,7 +1638,7 @@ if (typeof module !== 'undefined') module.exports = OsrsSynth;
     // the rocks' own shadows, darkening as they come down
     for (const { st } of rocks) {
       if (st.shadow <= 0) continue;
-      const s = 0.55 + 0.5 * (1.4 - Math.min(1.4, st.h - 2.2));
+      const s = 0.5 + 0.75 / (1 + 0.6 * Math.max(0, st.h - ROCK_H1));
       shadowBlob(sx(st.x), sy(st.y + 0.1), TS * 0.36 * s, TS * 0.24 * s, st.shadow);
     }
 
@@ -2053,7 +2073,8 @@ if (typeof module !== 'undefined') module.exports = OsrsSynth;
     $('#btn-edit').textContent = G.editing ? 'Done' : 'Arrange prayers';
     $('#btn-reset-layout').hidden = !G.editing;
     $('#paused').hidden = !G.editing && !(G.started && !G.running && !G.dead);
-    $('#paused').textContent = G.editing ? 'Drag a prayer to any slot · Done when finished' : 'Paused · Space to resume · . for the next tick';
+    $('#paused').classList.toggle('edit', G.editing);
+    $('#hud-title').textContent = G.editing ? 'Arrange prayers' : 'Paused';
     syncRuler();
     syncStats();
   }
